@@ -21,3 +21,39 @@ export type PointBalance = {
   current: number;
   breakdown: Array<{ category: string; earned: number; overflow: number }>;
 };
+
+export type StepsDaily = {
+  date: string;
+  count: number;
+  goal: number;
+};
+
+export type StepsWeekly = {
+  days: StepsDaily[];
+  total: number;
+  goal: number;
+};
+
+export type VitalType =
+  | 'blood_pressure'
+  | 'heart_rate'
+  | 'temperature'
+  | 'weight';
+
+export type VitalReading = {
+  id: string;
+  kkpId: KkpId;
+  type: VitalType;
+  recordedAt: string;
+  systolic?: number;
+  diastolic?: number;
+  bpm?: number;
+  celsius?: number;
+  weightKg?: number;
+};
+
+export type VitalInput =
+  | { type: 'blood_pressure'; systolic: number; diastolic: number }
+  | { type: 'heart_rate'; bpm: number }
+  | { type: 'temperature'; celsius: number }
+  | { type: 'weight'; weightKg: number };

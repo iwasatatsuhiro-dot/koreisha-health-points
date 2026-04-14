@@ -13,6 +13,7 @@ export default function UserLayout() {
       }}
     >
       <Tabs.Screen name="home" options={{ title: 'ホーム' }} />
+      <Tabs.Screen name="vitals" options={{ title: 'バイタル' }} />
       <Tabs.Screen name="settings" options={{ title: '設定' }} />
     </Tabs>
   );
