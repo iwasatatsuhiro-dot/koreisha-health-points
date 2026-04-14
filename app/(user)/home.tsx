@@ -7,7 +7,7 @@ import { useRouter } from 'expo-router';
 import { AppText } from '@/src/components/ui/AppText';
 import { AppButton } from '@/src/components/ui/AppButton';
 import { Card } from '@/src/components/ui/Card';
-import { secretariatApi } from '@/src/services/api/endpoints';
+import { secretariatApi, eventsApi, noticesApi, surveysApi } from '@/src/services/api/endpoints';
 import { useAuthStore } from '@/src/stores/authStore';
 import {
   useDailySteps,
@@ -48,6 +48,28 @@ export default function Home() {
     queryKey: ['balance', kkpId],
     queryFn: () => secretariatApi.getBalance(kkpId!),
     enabled: !!kkpId,
+  });
+
+  const upcomingEvents = useQuery({
+    queryKey: ['events'],
+    queryFn: eventsApi.listEvents,
+    staleTime: 60_000,
+    select: (evts) => evts.filter((e) => e.status === 'open').slice(0, 2),
+  });
+
+  const latestNotice = useQuery({
+    queryKey: ['notices'],
+    queryFn: noticesApi.listNotices,
+    staleTime: 60_000,
+    select: (notices) => notices[0] ?? null,
+  });
+
+  const pendingSurveys = useQuery({
+    queryKey: ['surveys', kkpId],
+    queryFn: () => surveysApi.listSurveys(kkpId!),
+    enabled: !!kkpId,
+    staleTime: 60_000,
+    select: (surveys) => surveys.filter((s) => !s.answeredAt).length,
   });
 
   const dailySteps = useDailySteps(kkpId);
@@ -134,18 +156,42 @@ export default function Home() {
           <AppText variant="heading">現有ポイント</AppText>
           {balance.isLoading && <AppText variant="body">読み込み中...</AppText>}
           {balance.data && (
-            <>
-              <AppText variant="title" style={{ color: colors.primary }}>
-                {balance.data.current} pt
-              </AppText>
-              <View style={{ gap: spacing.xs }}>
-                {balance.data.breakdown.map((b) => (
-                  <AppText key={b.category} variant="body">
-                    ・{b.category}: {b.earned} pt
-                  </AppText>
-                ))}
-              </View>
-            </>
+            <AppText variant="title" style={{ color: colors.primary }}>
+              {balance.data.current} pt
+            </AppText>
+          )}
+          <AppButton label="ポイント詳細・交換" variant="secondary" onPress={() => router.push('/(user)/points')} />
+        </Card>
+
+        {/* 開催予定イベント */}
+        <Card>
+          <View style={styles.cardHeader}>
+            <AppText variant="heading">開催予定イベント</AppText>
+            <AppButton label="すべて見る" variant="secondary" onPress={() => router.push('/(user)/events')} style={styles.smallBtn} />
+          </View>
+          {upcomingEvents.data?.length === 0 && (
+            <AppText variant="body" style={styles.muted}>現在開催予定のイベントはありません</AppText>
+          )}
+          {upcomingEvents.data?.map((evt) => (
+            <View key={evt.id} style={styles.eventRow}>
+              <AppText variant="body" style={styles.eventTitle}>{evt.title}</AppText>
+              <AppText variant="caption" style={styles.eventPts}>+{evt.pointsAwarded}pt</AppText>
+            </View>
+          ))}
+        </Card>
+
+        {/* お知らせ */}
+        <Card>
+          <View style={styles.cardHeader}>
+            <AppText variant="heading">
+              お知らせ{(pendingSurveys.data ?? 0) > 0 ? `（アンケート ${pendingSurveys.data}件）` : ''}
+            </AppText>
+            <AppButton label="すべて見る" variant="secondary" onPress={() => router.push('/(user)/notices')} style={styles.smallBtn} />
+          </View>
+          {latestNotice.data ? (
+            <AppText variant="body" numberOfLines={2}>{latestNotice.data.title}</AppText>
+          ) : (
+            <AppText variant="body" style={styles.muted}>お知らせはありません</AppText>
           )}
         </Card>
       </ScrollView>
@@ -190,4 +236,10 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
+  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  smallBtn: { paddingHorizontal: spacing.sm, minHeight: 36 },
+  eventRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: spacing.xs },
+  eventTitle: { flex: 1 },
+  eventPts: { color: colors.success, fontWeight: '700' },
+  muted: { color: colors.textMuted },
 });

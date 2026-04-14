@@ -6,13 +6,15 @@ export default function OrganizerLayout() {
     <Tabs
       screenOptions={{
         tabBarActiveTintColor: colors.accent,
-        tabBarLabelStyle: { fontSize: 14, fontWeight: '700' },
+        tabBarLabelStyle: { fontSize: 13, fontWeight: '700' },
         tabBarStyle: { minHeight: 64 },
         headerStyle: { backgroundColor: colors.accent },
         headerTintColor: '#FFFFFF',
       }}
     >
-      <Tabs.Screen name="home" options={{ title: '開催者ホーム' }} />
+      <Tabs.Screen name="home" options={{ title: 'ホーム' }} />
+      <Tabs.Screen name="events" options={{ title: 'イベント管理' }} />
+      <Tabs.Screen name="settings" options={{ title: '設定' }} />
     </Tabs>
   );
 }

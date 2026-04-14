@@ -6,15 +6,20 @@ export default function UserLayout() {
     <Tabs
       screenOptions={{
         tabBarActiveTintColor: colors.primary,
-        tabBarLabelStyle: { fontSize: 14, fontWeight: '700' },
+        tabBarLabelStyle: { fontSize: 13, fontWeight: '700' },
         tabBarStyle: { minHeight: 64 },
         headerStyle: { backgroundColor: colors.primary },
         headerTintColor: '#FFFFFF',
       }}
     >
       <Tabs.Screen name="home" options={{ title: 'ホーム' }} />
+      <Tabs.Screen name="events" options={{ title: 'イベント' }} />
       <Tabs.Screen name="vitals" options={{ title: 'バイタル' }} />
+      <Tabs.Screen name="points" options={{ title: 'ポイント' }} />
+      <Tabs.Screen name="notices" options={{ title: 'お知らせ' }} />
       <Tabs.Screen name="settings" options={{ title: '設定' }} />
+      {/* 動的ルート（タブバーに出さない） */}
+      <Tabs.Screen name="event/[id]" options={{ href: null, title: 'イベント詳細' }} />
     </Tabs>
   );
 }
