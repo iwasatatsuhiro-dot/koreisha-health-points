@@ -1,4 +1,5 @@
 import { db } from './db';
+import type { VitalType } from '@/src/types';
 
 type Method = 'GET' | 'POST' | 'PUT' | 'DELETE';
 
@@ -74,5 +75,67 @@ export const handlers: Handler[] = [
     method: 'GET',
     pattern: /^\/payment-gw\/providers$/,
     handle: () => json({ providers: db.listExchangeProviders() }),
+  },
+
+  // ---- 健康：週間歩数 ----
+  {
+    method: 'GET',
+    pattern: /^\/health\/([\w-]+)\/steps\/weekly$/,
+    handle: (_req, m) => json(db.getWeeklySteps(m[1])),
+  },
+
+  // ---- 健康：当日歩数 ----
+  {
+    method: 'GET',
+    pattern: /^\/health\/([\w-]+)\/steps\/daily$/,
+    handle: (_req, m) => json(db.getDailySteps(m[1])),
+  },
+
+  // ---- 健康：当日歩数を端末からの実測値で上書き ----
+  {
+    method: 'POST',
+    pattern: /^\/health\/([\w-]+)\/steps\/daily$/,
+    handle: (req, m) => {
+      const { date, count } = (req.body ?? {}) as { date?: string; count?: number };
+      if (!date || typeof count !== 'number') return json({ error: 'invalid_payload' }, 400);
+      db.upsertDailySteps(m[1], date, count);
+      return json(db.getDailySteps(m[1], date));
+    },
+  },
+
+  // ---- 健康：バイタル一覧 ----
+  {
+    method: 'GET',
+    pattern: /^\/health\/([\w-]+)\/vitals$/,
+    handle: (_req, m) => json({ vitals: db.listVitals(m[1]) }),
+  },
+
+  // ---- 健康：バイタル登録 ----
+  {
+    method: 'POST',
+    pattern: /^\/health\/([\w-]+)\/vitals$/,
+    handle: (req, m) => {
+      const body = req.body as {
+        type?: VitalType;
+        systolic?: number;
+        diastolic?: number;
+        bpm?: number;
+        celsius?: number;
+        weightKg?: number;
+        recordedAt?: string;
+      };
+      if (!body?.type) return json({ error: 'type_required' }, 400);
+      const saved = db.addVital({
+        kkpId: m[1],
+        type: body.type,
+        recordedAt: body.recordedAt ?? new Date().toISOString(),
+        systolic: body.systolic,
+        diastolic: body.diastolic,
+        bpm: body.bpm,
+        celsius: body.celsius,
+        weightKg: body.weightKg,
+      });
+      return json(saved, 201);
+    },
   },
 ];
