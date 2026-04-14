@@ -1,5 +1,6 @@
 import { ScrollView, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
 
 import { AppText } from '@/src/components/ui/AppText';
 import { AppButton } from '@/src/components/ui/AppButton';
@@ -7,7 +8,13 @@ import { useAuthStore } from '@/src/stores/authStore';
 import { colors, spacing } from '@/src/theme';
 
 export default function OrganizerHome() {
+  const router = useRouter();
   const { kkpId, signOut } = useAuthStore();
+
+  function handleSignOut() {
+    signOut();
+    router.replace('/');
+  }
 
   return (
     <SafeAreaView style={styles.safe} edges={['bottom']}>
@@ -20,7 +27,7 @@ export default function OrganizerHome() {
           M5 で機能を実装予定です。
         </AppText>
 
-        <AppButton label="ログアウト" variant="secondary" onPress={signOut} />
+        <AppButton label="ログアウト" variant="secondary" onPress={handleSignOut} />
       </ScrollView>
     </SafeAreaView>
   );

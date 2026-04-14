@@ -1,4 +1,4 @@
-import type { AxiosAdapter, InternalAxiosRequestConfig, AxiosResponse } from 'axios';
+import { AxiosError, type AxiosAdapter, type InternalAxiosRequestConfig, type AxiosResponse } from 'axios';
 import { handlers, type MockRequest } from './handlers';
 
 export const useMocks = (process.env.EXPO_PUBLIC_USE_MOCKS ?? 'true') !== 'false';
@@ -25,13 +25,33 @@ export const mockAdapter: AxiosAdapter = async (config) => {
     .map((h) => ({ handler: h, m: url.match(h.pattern) }))
     .find((x) => x.m !== null);
 
-  if (!match || !match.m) {
-    return buildResponse(config, 404, { error: 'no_mock_handler', method, url });
-  }
+  const response = match?.m
+    ? buildResponse(config, ...(await resolveHandlerResult(match.handler.handle({ method, url, body }, match.m))))
+    : buildResponse(config, 404, { error: 'no_mock_handler', method, url });
 
-  const result = await match.handler.handle({ method, url, body }, match.m);
-  return buildResponse(config, result.status, result.data);
+  return settleStatus(config, response);
 };
+
+async function resolveHandlerResult(
+  resultOrPromise: Promise<{ status: number; data: any }> | { status: number; data: any },
+): Promise<[number, any]> {
+  const result = await resultOrPromise;
+  return [result.status, result.data];
+}
+
+function settleStatus(config: InternalAxiosRequestConfig, response: AxiosResponse): AxiosResponse {
+  const validateStatus = config.validateStatus ?? ((s: number) => s >= 200 && s < 300);
+  if (!validateStatus(response.status)) {
+    throw new AxiosError(
+      `Request failed with status code ${response.status}`,
+      response.status >= 500 ? AxiosError.ERR_BAD_RESPONSE : AxiosError.ERR_BAD_REQUEST,
+      config,
+      null,
+      response,
+    );
+  }
+  return response;
+}
 
 function safeJsonParse(s: string): any {
   try {

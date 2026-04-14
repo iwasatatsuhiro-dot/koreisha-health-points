@@ -27,9 +27,13 @@ export default function Register() {
   });
 
   const onSubmit = () => {
-    const trimmed = kkpId.trim();
+    const trimmed = kkpId.trim().toUpperCase();
     if (!trimmed) {
       Alert.alert('KKP-ID を入力してください');
+      return;
+    }
+    if (!/^(KKP|ORG)-\d{6}$/.test(trimmed)) {
+      Alert.alert('KKP-ID の形式が正しくありません', '例: KKP-000001（英字3文字＋ハイフン＋数字6桁）');
       return;
     }
     mutation.mutate(trimmed);
