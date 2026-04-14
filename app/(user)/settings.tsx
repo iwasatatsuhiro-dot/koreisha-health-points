@@ -1,5 +1,6 @@
 import { View, ScrollView, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
 
 import { AppText } from '@/src/components/ui/AppText';
 import { AppButton } from '@/src/components/ui/AppButton';
@@ -8,8 +9,14 @@ import { useAuthStore } from '@/src/stores/authStore';
 import { colors, spacing } from '@/src/theme';
 
 export default function Settings() {
+  const router = useRouter();
   const { fontScale, cycleFontScale } = useAccessibilityStore();
   const signOut = useAuthStore((s) => s.signOut);
+
+  function handleSignOut() {
+    signOut();
+    router.replace('/');
+  }
 
   return (
     <SafeAreaView style={styles.safe} edges={['bottom']}>
@@ -23,7 +30,7 @@ export default function Settings() {
         </View>
 
         <View style={{ marginTop: spacing.xl }}>
-          <AppButton label="ログアウト" variant="secondary" onPress={signOut} />
+          <AppButton label="ログアウト" variant="secondary" onPress={handleSignOut} />
         </View>
       </ScrollView>
     </SafeAreaView>
