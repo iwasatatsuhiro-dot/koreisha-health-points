@@ -20,6 +20,9 @@ export default function UserLayout() {
       <Tabs.Screen name="settings" options={{ title: '設定' }} />
       {/* 動的ルート（タブバーに出さない） */}
       <Tabs.Screen name="event/[id]" options={{ href: null, title: 'イベント詳細' }} />
+      <Tabs.Screen name="videos" options={{ href: null, title: '健康動画' }} />
+      <Tabs.Screen name="video/[id]" options={{ href: null, title: '動画視聴' }} />
+      <Tabs.Screen name="missions" options={{ href: null, title: 'ミッション' }} />
     </Tabs>
   );
 }

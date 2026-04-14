@@ -125,3 +125,48 @@ export type Survey = {
   expiresAt: string;
   answeredAt?: string;
 };
+
+export type HealthVideoCategory = 'frailty' | 'exercise' | 'nutrition' | 'mental';
+
+export type HealthVideo = {
+  id: string;
+  title: string;
+  description: string;
+  durationSec: number;
+  category: HealthVideoCategory;
+  pointsAwarded: number;
+  thumbnailEmoji: string;
+  watchedAt?: string;
+};
+
+export type MissionPeriod = 'daily' | 'weekly' | 'monthly';
+
+export type Mission = {
+  id: string;
+  title: string;
+  description: string;
+  period: MissionPeriod;
+  target: number;
+  progress: number;
+  unit: string;
+  pointsAwarded: number;
+  completed: boolean;
+};
+
+export type RankingEntry = {
+  rank: number;
+  kkpId: string;
+  displayName: string;
+  points: number;
+  isMe: boolean;
+};
+
+export type FrailtyRiskLevel = 'low' | 'medium' | 'high' | 'unknown';
+
+export type FrailtyRiskAssessment = {
+  level: FrailtyRiskLevel;
+  score: number;
+  factors: Array<{ label: string; status: 'good' | 'warn' | 'bad' | 'unknown'; detail: string }>;
+  advice: string;
+  assessedAt: string;
+};

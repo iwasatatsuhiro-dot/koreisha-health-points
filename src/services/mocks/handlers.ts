@@ -346,4 +346,65 @@ export const handlers: Handler[] = [
       return json({ success: true, pointsAwarded: result.pointsAwarded });
     },
   },
+
+  // ── 健康動画：一覧 ───────────────────────────────────────────────────────
+  {
+    method: 'GET',
+    pattern: /^\/users\/([\w-]+)\/videos$/,
+    handle: (_req, m) => json({ videos: db.listVideos(m[1]) }),
+  },
+
+  // ── 健康動画：詳細 ───────────────────────────────────────────────────────
+  {
+    method: 'GET',
+    pattern: /^\/users\/([\w-]+)\/videos\/([\w-]+)$/,
+    handle: (_req, m) => {
+      const v = db.getVideo(m[2], m[1]);
+      if (!v) return json({ error: 'not_found' }, 404);
+      return json(v);
+    },
+  },
+
+  // ── 健康動画：視聴完了 ───────────────────────────────────────────────────
+  {
+    method: 'POST',
+    pattern: /^\/users\/([\w-]+)\/videos\/([\w-]+)\/watch$/,
+    handle: (_req, m) => {
+      const kkpId = m[1];
+      const videoId = m[2];
+      const video = db.getVideo(videoId, kkpId);
+      if (!video) return json({ error: 'not_found' }, 404);
+      const result = db.markVideoWatched(videoId, kkpId);
+      if (result.alreadyWatchedToday) return json({ error: 'already_watched_today' }, 409);
+      db.addPointHistory({
+        kkpId,
+        category: 'video',
+        delta: result.pointsAwarded,
+        note: `動画視聴「${video.title}」`,
+        recordedAt: new Date().toISOString(),
+      });
+      return json({ success: true, pointsAwarded: result.pointsAwarded });
+    },
+  },
+
+  // ── ミッション一覧 ───────────────────────────────────────────────────────
+  {
+    method: 'GET',
+    pattern: /^\/users\/([\w-]+)\/missions$/,
+    handle: (_req, m) => json({ missions: db.listMissions(m[1]) }),
+  },
+
+  // ── ランキング ───────────────────────────────────────────────────────────
+  {
+    method: 'GET',
+    pattern: /^\/users\/([\w-]+)\/ranking$/,
+    handle: (_req, m) => json({ ranking: db.getRanking(m[1]) }),
+  },
+
+  // ── フレイルリスク判定 ───────────────────────────────────────────────────
+  {
+    method: 'GET',
+    pattern: /^\/users\/([\w-]+)\/frailty-risk$/,
+    handle: (_req, m) => json(db.assessFrailty(m[1])),
+  },
 ];

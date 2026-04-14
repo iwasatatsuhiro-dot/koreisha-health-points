@@ -7,7 +7,14 @@ import { useRouter } from 'expo-router';
 import { AppText } from '@/src/components/ui/AppText';
 import { AppButton } from '@/src/components/ui/AppButton';
 import { Card } from '@/src/components/ui/Card';
-import { secretariatApi, eventsApi, noticesApi, surveysApi } from '@/src/services/api/endpoints';
+import {
+  secretariatApi,
+  eventsApi,
+  noticesApi,
+  surveysApi,
+  frailtyApi,
+  missionsApi,
+} from '@/src/services/api/endpoints';
 import { useAuthStore } from '@/src/stores/authStore';
 import {
   useDailySteps,
@@ -17,7 +24,14 @@ import {
 } from '@/src/hooks/useSteps';
 import { useLatestVitalsByType } from '@/src/hooks/useVitals';
 import { colors, radii, spacing } from '@/src/theme';
-import type { VitalReading, VitalType } from '@/src/types';
+import type { FrailtyRiskLevel, VitalReading, VitalType } from '@/src/types';
+
+const FRAILTY_LABELS: Record<FrailtyRiskLevel, { label: string; color: string }> = {
+  low: { label: '良好', color: colors.success },
+  medium: { label: '注意', color: colors.accent },
+  high: { label: '要相談', color: colors.danger },
+  unknown: { label: '判定中', color: colors.textMuted },
+};
 
 const VITAL_LABELS: Record<VitalType, string> = {
   blood_pressure: '血圧',
@@ -70,6 +84,21 @@ export default function Home() {
     enabled: !!kkpId,
     staleTime: 60_000,
     select: (surveys) => surveys.filter((s) => !s.answeredAt).length,
+  });
+
+  const frailty = useQuery({
+    queryKey: ['frailty', kkpId],
+    queryFn: () => frailtyApi.assess(kkpId!),
+    enabled: !!kkpId,
+    staleTime: 60_000,
+  });
+
+  const missions = useQuery({
+    queryKey: ['missions', kkpId],
+    queryFn: () => missionsApi.listMissions(kkpId!),
+    enabled: !!kkpId,
+    staleTime: 60_000,
+    select: (list) => ({ total: list.length, completed: list.filter((m) => m.completed).length }),
   });
 
   const dailySteps = useDailySteps(kkpId);
@@ -152,6 +181,32 @@ export default function Home() {
           <AppButton label="バイタルを記録する" onPress={() => router.push('/(user)/vitals')} />
         </Card>
 
+        {/* フレイルリスク */}
+        <Card>
+          <View style={styles.cardHeader}>
+            <AppText variant="heading">健康リスク（フレイル）</AppText>
+            {frailty.data && (
+              <View style={[styles.riskBadge, { backgroundColor: FRAILTY_LABELS[frailty.data.level].color }]}>
+                <AppText variant="caption" style={styles.riskBadgeText}>
+                  {FRAILTY_LABELS[frailty.data.level].label}
+                </AppText>
+              </View>
+            )}
+          </View>
+          {frailty.isLoading && <AppText variant="body">判定中...</AppText>}
+          {frailty.data && (
+            <>
+              {frailty.data.factors.map((f) => (
+                <View key={f.label} style={styles.factorRow}>
+                  <AppText variant="body" style={{ flex: 1 }}>{f.label}</AppText>
+                  <AppText variant="body" style={styles.muted}>{f.detail}</AppText>
+                </View>
+              ))}
+              <AppText variant="body" style={styles.adviceText}>{frailty.data.advice}</AppText>
+            </>
+          )}
+        </Card>
+
         <Card>
           <AppText variant="heading">現有ポイント</AppText>
           {balance.isLoading && <AppText variant="body">読み込み中...</AppText>}
@@ -161,6 +216,30 @@ export default function Home() {
             </AppText>
           )}
           <AppButton label="ポイント詳細・交換" variant="secondary" onPress={() => router.push('/(user)/points')} />
+        </Card>
+
+        {/* ミッション */}
+        <Card>
+          <View style={styles.cardHeader}>
+            <AppText variant="heading">
+              ミッション{missions.data ? `（${missions.data.completed}/${missions.data.total}達成）` : ''}
+            </AppText>
+            <AppButton label="一覧を見る" variant="secondary" onPress={() => router.push('/(user)/missions')} style={styles.smallBtn} />
+          </View>
+          <AppText variant="body" style={styles.muted}>
+            目標達成でポイント獲得・ランキングも確認できます
+          </AppText>
+        </Card>
+
+        {/* 健康動画 */}
+        <Card>
+          <View style={styles.cardHeader}>
+            <AppText variant="heading">健康動画</AppText>
+            <AppButton label="一覧を見る" variant="secondary" onPress={() => router.push('/(user)/videos')} style={styles.smallBtn} />
+          </View>
+          <AppText variant="body" style={styles.muted}>
+            フレイル予防・運動・食事など。1日1回ポイントを獲得できます。
+          </AppText>
         </Card>
 
         {/* 開催予定イベント */}
@@ -242,4 +321,14 @@ const styles = StyleSheet.create({
   eventTitle: { flex: 1 },
   eventPts: { color: colors.success, fontWeight: '700' },
   muted: { color: colors.textMuted },
+  riskBadge: { paddingHorizontal: spacing.sm, paddingVertical: 4, borderRadius: radii.pill },
+  riskBadgeText: { color: '#FFFFFF', fontWeight: '700' },
+  factorRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: spacing.xs,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  adviceText: { marginTop: spacing.sm },
 });
