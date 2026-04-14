@@ -1,4 +1,4 @@
-import { Pressable, StyleSheet, type PressableProps, View } from 'react-native';
+import { Pressable, StyleSheet, type PressableProps, type ViewStyle, View } from 'react-native';
 import { AppText } from './AppText';
 import { colors, radii, spacing } from '@/src/theme';
 
@@ -8,9 +8,10 @@ type Props = Omit<PressableProps, 'children' | 'style'> & {
   label: string;
   variant?: Variant;
   disabled?: boolean;
+  style?: ViewStyle;
 };
 
-export function AppButton({ label, variant = 'primary', disabled, ...rest }: Props) {
+export function AppButton({ label, variant = 'primary', disabled, style, ...rest }: Props) {
   return (
     <Pressable
       accessibilityRole="button"
@@ -23,6 +24,7 @@ export function AppButton({ label, variant = 'primary', disabled, ...rest }: Pro
         variant === 'ghost' && styles.ghost,
         disabled && styles.disabled,
         pressed && !disabled && styles.pressed,
+        style,
       ]}
       {...rest}
     >

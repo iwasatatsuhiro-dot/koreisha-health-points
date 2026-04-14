@@ -57,3 +57,71 @@ export type VitalInput =
   | { type: 'heart_rate'; bpm: number }
   | { type: 'temperature'; celsius: number }
   | { type: 'weight'; weightKg: number };
+
+export type EventCategory = 'recreation' | 'volunteer' | 'health' | 'other';
+
+export type AppEvent = {
+  id: string;
+  title: string;
+  category: EventCategory;
+  location: string;
+  startAt: string;
+  endAt: string;
+  description: string;
+  organizerId: string;
+  organizerName: string;
+  maxParticipants?: number;
+  participantCount: number;
+  pointsAwarded: number;
+  status: 'open' | 'closed' | 'cancelled';
+};
+
+export type EventParticipation = {
+  eventId: string;
+  kkpId: string;
+  participatedAt: string;
+  pointsAwarded: number;
+};
+
+export type PointHistoryCategory = 'walk' | 'event' | 'video' | 'survey' | 'manual' | 'exchange';
+
+export type PointHistory = {
+  id: string;
+  kkpId: string;
+  category: PointHistoryCategory;
+  delta: number;
+  note: string;
+  recordedAt: string;
+};
+
+export type ExchangeProvider = {
+  id: string;
+  name: string;
+  minPoints: number;
+  description: string;
+};
+
+export type Notice = {
+  id: string;
+  title: string;
+  body: string;
+  publishedAt: string;
+  important: boolean;
+};
+
+export type SurveyQuestion = {
+  id: string;
+  text: string;
+  type: 'single' | 'multi' | 'text';
+  options?: string[];
+};
+
+export type Survey = {
+  id: string;
+  title: string;
+  description: string;
+  questions: SurveyQuestion[];
+  pointsAwarded: number;
+  expiresAt: string;
+  answeredAt?: string;
+};
