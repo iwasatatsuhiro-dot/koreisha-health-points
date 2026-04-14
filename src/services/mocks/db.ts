@@ -1,9 +1,14 @@
 import type {
   AppEvent,
   EventParticipation,
+  FrailtyRiskAssessment,
+  FrailtyRiskLevel,
+  HealthVideo,
+  Mission,
   Notice,
   PointHistory,
   PointHistoryCategory,
+  RankingEntry,
   StepsDaily,
   Survey,
   UserRole,
@@ -265,6 +270,50 @@ const surveys: Survey[] = [
 
 const answeredSurveys: Record<string, Set<string>> = {};
 
+// ── 健康動画 ─────────────────────────────────────────────────────────────────
+
+const healthVideos: HealthVideo[] = [
+  {
+    id: 'VID-001',
+    title: 'フレイルを知ろう',
+    description: 'フレイル（加齢に伴う虚弱）の基礎と予防のポイントを解説します。',
+    durationSec: 180,
+    category: 'frailty',
+    pointsAwarded: 20,
+    thumbnailEmoji: '🧓',
+  },
+  {
+    id: 'VID-002',
+    title: '自宅でできる簡単ストレッチ',
+    description: '椅子に座ったままできる、毎日続けやすい5分間のストレッチです。',
+    durationSec: 300,
+    category: 'exercise',
+    pointsAwarded: 20,
+    thumbnailEmoji: '🧘',
+  },
+  {
+    id: 'VID-003',
+    title: '健康な食事の基本',
+    description: 'タンパク質・野菜・主食のバランスよい1日の食事例を紹介します。',
+    durationSec: 240,
+    category: 'nutrition',
+    pointsAwarded: 20,
+    thumbnailEmoji: '🥗',
+  },
+  {
+    id: 'VID-004',
+    title: '認知症を予防する生活習慣',
+    description: '認知症予防に効果的な運動・食事・社会参加について学びます。',
+    durationSec: 360,
+    category: 'mental',
+    pointsAwarded: 30,
+    thumbnailEmoji: '🧠',
+  },
+];
+
+// kkpId -> Map(videoId, lastWatchedDate 'YYYY-MM-DD')
+const watchedVideos: Record<string, Map<string, string>> = {};
+
 // ── 歩数 ─────────────────────────────────────────────────────────────────────
 
 const DEFAULT_STEPS_GOAL = 6000;
@@ -407,5 +456,194 @@ export const db = {
     answeredSurveys[kkpId].add(surveyId);
     const survey = surveys.find((s) => s.id === surveyId);
     return { alreadyAnswered: false, pointsAwarded: survey?.pointsAwarded ?? 0 };
+  },
+
+  // --- 健康動画 ---
+  listVideos: (kkpId: string): HealthVideo[] => {
+    const today = new Date().toISOString().slice(0, 10);
+    const watched = watchedVideos[kkpId];
+    return healthVideos.map((v) => ({
+      ...v,
+      watchedAt: watched?.get(v.id) === today ? new Date().toISOString() : undefined,
+    }));
+  },
+  getVideo: (id: string, kkpId: string): HealthVideo | null => {
+    const v = healthVideos.find((x) => x.id === id);
+    if (!v) return null;
+    const today = new Date().toISOString().slice(0, 10);
+    const watched = watchedVideos[kkpId];
+    return {
+      ...v,
+      watchedAt: watched?.get(id) === today ? new Date().toISOString() : undefined,
+    };
+  },
+  markVideoWatched: (videoId: string, kkpId: string): { alreadyWatchedToday: boolean; pointsAwarded: number } => {
+    const video = healthVideos.find((v) => v.id === videoId);
+    if (!video) return { alreadyWatchedToday: false, pointsAwarded: 0 };
+    if (!watchedVideos[kkpId]) watchedVideos[kkpId] = new Map();
+    const today = new Date().toISOString().slice(0, 10);
+    if (watchedVideos[kkpId].get(videoId) === today) {
+      return { alreadyWatchedToday: true, pointsAwarded: 0 };
+    }
+    watchedVideos[kkpId].set(videoId, today);
+    return { alreadyWatchedToday: false, pointsAwarded: video.pointsAwarded };
+  },
+
+  // --- ミッション ---
+  listMissions: (kkpId: string): Mission[] => {
+    const weekly = db.getWeeklySteps(kkpId);
+    const todayDate = new Date().toISOString().slice(0, 10);
+    const todayCount = weekly.days.find((d) => d.date === todayDate)?.count ?? 0;
+    const daysAchieved = weekly.days.filter((d) => d.count >= DEFAULT_STEPS_GOAL).length;
+    const monthStart = new Date();
+    monthStart.setDate(1);
+    const monthParticipations = participations.filter(
+      (p) => p.kkpId === kkpId && new Date(p.participatedAt) >= monthStart,
+    ).length;
+
+    const dailySteps: Mission = {
+      id: 'M-DAILY-STEPS',
+      title: '今日6000歩を歩こう',
+      description: '毎日の歩数目標を達成してポイントを獲得',
+      period: 'daily',
+      target: DEFAULT_STEPS_GOAL,
+      progress: Math.min(todayCount, DEFAULT_STEPS_GOAL),
+      unit: '歩',
+      pointsAwarded: 10,
+      completed: todayCount >= DEFAULT_STEPS_GOAL,
+    };
+    const weeklyStreak: Mission = {
+      id: 'M-WEEKLY-STREAK',
+      title: '今週5日以上6000歩達成',
+      description: '週5日以上、歩数目標をクリア',
+      period: 'weekly',
+      target: 5,
+      progress: Math.min(daysAchieved, 5),
+      unit: '日',
+      pointsAwarded: 50,
+      completed: daysAchieved >= 5,
+    };
+    const monthlyEvents: Mission = {
+      id: 'M-MONTHLY-EVENTS',
+      title: '今月2つのイベントに参加',
+      description: 'イベント参加で地域とつながろう',
+      period: 'monthly',
+      target: 2,
+      progress: Math.min(monthParticipations, 2),
+      unit: '回',
+      pointsAwarded: 80,
+      completed: monthParticipations >= 2,
+    };
+    return [dailySteps, weeklyStreak, monthlyEvents];
+  },
+
+  // --- ランキング ---
+  getRanking: (kkpId: string): RankingEntry[] => {
+    const since = new Date();
+    since.setDate(since.getDate() - 30);
+    const totalsByUser: Record<string, number> = {};
+    for (const h of pointHistory) {
+      if (h.delta <= 0) continue;
+      if (new Date(h.recordedAt) < since) continue;
+      const t = targets[h.kkpId];
+      if (!t || t.role !== 'user') continue;
+      totalsByUser[h.kkpId] = (totalsByUser[h.kkpId] ?? 0) + h.delta;
+    }
+    // 他ユーザダミーを補充して順位感を出す
+    const dummyTotals: Record<string, number> = {
+      'KKP-DUMMY-1': 420,
+      'KKP-DUMMY-2': 280,
+      'KKP-DUMMY-3': 180,
+      'KKP-DUMMY-4': 150,
+    };
+    const displayNames: Record<string, string> = {
+      'KKP-DUMMY-1': '札幌花子さん',
+      'KKP-DUMMY-2': 'すすきの太郎さん',
+      'KKP-DUMMY-3': '大通公子さん',
+      'KKP-DUMMY-4': '円山次郎さん',
+      'KKP-000001': 'あなた',
+      'KKP-000002': 'サンプルユーザ',
+    };
+    const combined: Array<{ kkpId: string; points: number }> = [
+      ...Object.entries(totalsByUser).map(([k, p]) => ({ kkpId: k, points: p })),
+      ...Object.entries(dummyTotals).map(([k, p]) => ({ kkpId: k, points: p })),
+    ];
+    combined.sort((a, b) => b.points - a.points);
+    return combined.slice(0, 10).map((row, i) => ({
+      rank: i + 1,
+      kkpId: row.kkpId,
+      displayName: row.kkpId === kkpId ? 'あなた' : displayNames[row.kkpId] ?? `ユーザ${row.kkpId.slice(-4)}`,
+      points: row.points,
+      isMe: row.kkpId === kkpId,
+    }));
+  },
+
+  // --- フレイルリスク判定 ---
+  assessFrailty: (kkpId: string): FrailtyRiskAssessment => {
+    const weekly = db.getWeeklySteps(kkpId);
+    const avgSteps = weekly.total / 7;
+    const vitals = vitalsByUser[kkpId] ?? [];
+    const recentBp = [...vitals]
+      .filter((v) => v.type === 'blood_pressure')
+      .sort((a, b) => b.recordedAt.localeCompare(a.recordedAt))[0];
+    const recentWeight = [...vitals]
+      .filter((v) => v.type === 'weight')
+      .sort((a, b) => b.recordedAt.localeCompare(a.recordedAt))[0];
+
+    const factors: FrailtyRiskAssessment['factors'] = [];
+    let score = 0;
+
+    if (avgSteps >= 6000) {
+      factors.push({ label: '活動量', status: 'good', detail: `平均 ${Math.round(avgSteps).toLocaleString()} 歩/日` });
+    } else if (avgSteps >= 3000) {
+      factors.push({ label: '活動量', status: 'warn', detail: `平均 ${Math.round(avgSteps).toLocaleString()} 歩/日` });
+      score += 1;
+    } else {
+      factors.push({ label: '活動量', status: 'bad', detail: `平均 ${Math.round(avgSteps).toLocaleString()} 歩/日` });
+      score += 2;
+    }
+
+    if (!recentBp) {
+      factors.push({ label: '血圧', status: 'unknown', detail: '記録なし' });
+      score += 1;
+    } else {
+      const sys = recentBp.systolic ?? 0;
+      if (sys >= 160 || sys < 90) {
+        factors.push({ label: '血圧', status: 'bad', detail: `最高 ${sys} mmHg` });
+        score += 2;
+      } else if (sys >= 140) {
+        factors.push({ label: '血圧', status: 'warn', detail: `最高 ${sys} mmHg` });
+        score += 1;
+      } else {
+        factors.push({ label: '血圧', status: 'good', detail: `最高 ${sys} mmHg` });
+      }
+    }
+
+    if (!recentWeight) {
+      factors.push({ label: '体重記録', status: 'unknown', detail: '記録なし' });
+    } else {
+      factors.push({ label: '体重記録', status: 'good', detail: `${recentWeight.weightKg?.toFixed(1) ?? '-'} kg` });
+    }
+
+    let level: FrailtyRiskLevel;
+    let advice: string;
+    if (score === 0) {
+      level = 'low';
+      advice = '現状のペースを維持しましょう。無理のない範囲で活動を続けてください。';
+    } else if (score <= 2) {
+      level = 'medium';
+      advice = '活動量やバイタル記録を増やすとさらに健康維持に効果的です。';
+    } else {
+      level = 'high';
+      advice = 'お近くの地域包括支援センターへ相談することをおすすめします。無理せず活動量を少しずつ増やしましょう。';
+    }
+
+    return {
+      level,
+      score,
+      factors,
+      advice,
+      assessedAt: new Date().toISOString(),
+    };
   },
 };

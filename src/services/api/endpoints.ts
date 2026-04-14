@@ -2,9 +2,13 @@ import { apiClient } from './client';
 import type {
   AppEvent,
   ExchangeProvider,
+  FrailtyRiskAssessment,
+  HealthVideo,
+  Mission,
   Notice,
   PointBalance,
   PointHistory,
+  RankingEntry,
   StepsDaily,
   StepsWeekly,
   Survey,
@@ -111,5 +115,41 @@ export const surveysApi = {
   submitAnswer: async (surveyId: string, kkpId: string, answers: Record<string, string | string[]>) => {
     const res = await apiClient.post(`/users/${kkpId}/surveys/${surveyId}/answer`, { kkpId, answers });
     return res.data as { success: boolean; pointsAwarded: number };
+  },
+};
+
+export const videosApi = {
+  listVideos: async (kkpId: string) => {
+    const res = await apiClient.get(`/users/${kkpId}/videos`);
+    return res.data.videos as HealthVideo[];
+  },
+  getVideo: async (id: string, kkpId: string) => {
+    const res = await apiClient.get(`/users/${kkpId}/videos/${id}`);
+    return res.data as HealthVideo;
+  },
+  markWatched: async (id: string, kkpId: string) => {
+    const res = await apiClient.post(`/users/${kkpId}/videos/${id}/watch`, {});
+    return res.data as { success: boolean; pointsAwarded: number };
+  },
+};
+
+export const missionsApi = {
+  listMissions: async (kkpId: string) => {
+    const res = await apiClient.get(`/users/${kkpId}/missions`);
+    return res.data.missions as Mission[];
+  },
+};
+
+export const rankingApi = {
+  getRanking: async (kkpId: string) => {
+    const res = await apiClient.get(`/users/${kkpId}/ranking`);
+    return res.data.ranking as RankingEntry[];
+  },
+};
+
+export const frailtyApi = {
+  assess: async (kkpId: string) => {
+    const res = await apiClient.get(`/users/${kkpId}/frailty-risk`);
+    return res.data as FrailtyRiskAssessment;
   },
 };
