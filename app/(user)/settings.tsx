@@ -1,17 +1,29 @@
 import { View, ScrollView, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
+import { useQuery } from '@tanstack/react-query';
 
 import { AppText } from '@/src/components/ui/AppText';
 import { AppButton } from '@/src/components/ui/AppButton';
+import { Card } from '@/src/components/ui/Card';
 import { useAccessibilityStore } from '@/src/stores/accessibilityStore';
 import { useAuthStore } from '@/src/stores/authStore';
+import { pushApi } from '@/src/services/api/endpoints';
 import { colors, spacing } from '@/src/theme';
 
 export default function Settings() {
   const router = useRouter();
   const { fontScale, cycleFontScale } = useAccessibilityStore();
   const signOut = useAuthStore((s) => s.signOut);
+  const kkpId = useAuthStore((s) => s.kkpId);
+
+  const unread = useQuery({
+    queryKey: ['push', kkpId],
+    queryFn: () => pushApi.listMessages(kkpId!),
+    enabled: !!kkpId,
+    select: (data) => data.unread,
+    staleTime: 30_000,
+  });
 
   function handleSignOut() {
     signOut();
@@ -23,11 +35,37 @@ export default function Settings() {
       <ScrollView contentContainerStyle={styles.container}>
         <AppText variant="title">設定</AppText>
 
-        <View style={{ gap: spacing.sm }}>
+        <Card>
           <AppText variant="heading">文字サイズ</AppText>
           <AppText variant="body">現在: {Math.round(fontScale * 100)}%</AppText>
           <AppButton label="文字サイズを変更" variant="secondary" onPress={cycleFontScale} />
-        </View>
+        </Card>
+
+        <Card>
+          <AppText variant="heading">
+            通知センター{unread.data ? `（未読 ${unread.data}件）` : ''}
+          </AppText>
+          <AppText variant="body" style={styles.muted}>
+            アプリからの通知履歴と通知設定を確認できます。
+          </AppText>
+          <AppButton
+            label="通知センターを開く"
+            variant="secondary"
+            onPress={() => router.push('/(user)/notifications')}
+          />
+        </Card>
+
+        <Card>
+          <AppText variant="heading">お問い合わせ</AppText>
+          <AppText variant="body" style={styles.muted}>
+            アプリに関するご質問・ご要望は事務局へお問い合わせください。
+          </AppText>
+          <AppButton
+            label="問い合わせフォームを開く"
+            variant="secondary"
+            onPress={() => router.push('/(user)/inquiry')}
+          />
+        </Card>
 
         <View style={{ marginTop: spacing.xl }}>
           <AppButton label="ログアウト" variant="secondary" onPress={handleSignOut} />
@@ -39,5 +77,6 @@ export default function Settings() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
-  container: { padding: spacing.lg, gap: spacing.lg },
+  container: { padding: spacing.lg, gap: spacing.md },
+  muted: { color: colors.textMuted },
 });

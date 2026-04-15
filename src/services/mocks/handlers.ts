@@ -22,6 +22,17 @@ type Handler = {
 
 const json = (data: any, status = 200): MockResponse => ({ status, data });
 
+function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const R = 6371;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+  return 2 * R * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
 export const handlers: Handler[] = [
   // ── 対象者管理システム（KKP-ID 照会） ────────────────────────────────────
   {
@@ -212,6 +223,8 @@ export const handlers: Handler[] = [
         title: body.title,
         category: body.category ?? 'other',
         location: body.location ?? '',
+        latitude: body.latitude,
+        longitude: body.longitude,
         startAt: body.startAt,
         endAt: body.endAt ?? body.startAt,
         description: body.description ?? '',
@@ -221,6 +234,9 @@ export const handlers: Handler[] = [
         participantCount: 0,
         pointsAwarded: body.pointsAwarded ?? 50,
         status: 'open',
+        selectionMode: body.selectionMode ?? 'first-come',
+        applicationDeadline: body.applicationDeadline,
+        lotteryStatus: body.selectionMode === 'lottery' ? 'accepting' : undefined,
       };
       db.addEvent(evt);
       return json(evt, 201);
@@ -233,7 +249,11 @@ export const handlers: Handler[] = [
     pattern: /^\/events\/([\w-]+)\/attend$/,
     handle: (req, m) => {
       const eventId = m[1];
-      const { kkpId } = (req.body ?? {}) as { kkpId?: string };
+      const { kkpId, latitude, longitude } = (req.body ?? {}) as {
+        kkpId?: string;
+        latitude?: number;
+        longitude?: number;
+      };
       if (!kkpId) return json({ error: 'kkpId_required' }, 400);
       const evt = db.getEvent(eventId);
       if (!evt) return json({ error: 'event_not_found' }, 404);
@@ -245,6 +265,20 @@ export const handlers: Handler[] = [
       const eventDate = evt.startAt.slice(0, 10);
       if (today !== eventDate) {
         return json({ error: 'date_mismatch', eventDate, today }, 400);
+      }
+      // 抽選イベントは当選者のみ参加可
+      if (evt.selectionMode === 'lottery') {
+        const app = db.getApplication(eventId, kkpId);
+        if (!app || app.result !== 'won') {
+          return json({ error: 'not_selected' }, 403);
+        }
+      }
+      // 位置情報による不正防止（会場から1km以内を許可）
+      if (typeof latitude === 'number' && typeof longitude === 'number' && typeof evt.latitude === 'number' && typeof evt.longitude === 'number') {
+        const distKm = haversineKm(latitude, longitude, evt.latitude, evt.longitude);
+        if (distKm > 1.0) {
+          return json({ error: 'location_too_far', distanceKm: Math.round(distKm * 10) / 10 }, 403);
+        }
       }
       const participation = {
         eventId,
@@ -406,5 +440,132 @@ export const handlers: Handler[] = [
     method: 'GET',
     pattern: /^\/users\/([\w-]+)\/frailty-risk$/,
     handle: (_req, m) => json(db.assessFrailty(m[1])),
+  },
+
+  // ── 抽選：応募 ───────────────────────────────────────────────────────────
+  {
+    method: 'POST',
+    pattern: /^\/events\/([\w-]+)\/apply$/,
+    handle: (req, m) => {
+      const eventId = m[1];
+      const { kkpId } = (req.body ?? {}) as { kkpId?: string };
+      if (!kkpId) return json({ error: 'kkpId_required' }, 400);
+      const evt = db.getEvent(eventId);
+      if (!evt) return json({ error: 'event_not_found' }, 404);
+      if (evt.selectionMode !== 'lottery') return json({ error: 'not_lottery' }, 400);
+      if (evt.lotteryStatus !== 'accepting') return json({ error: 'applications_closed' }, 400);
+      if (evt.applicationDeadline && new Date() > new Date(evt.applicationDeadline)) {
+        return json({ error: 'deadline_passed' }, 400);
+      }
+      const result = db.addApplication(eventId, kkpId);
+      if (result.already) return json({ error: 'already_applied' }, 409);
+      return json({ success: true, application: result.application });
+    },
+  },
+
+  // ── 抽選：自分の応募一覧 ─────────────────────────────────────────────────
+  {
+    method: 'GET',
+    pattern: /^\/users\/([\w-]+)\/applications$/,
+    handle: (_req, m) => json({ applications: db.listApplications(m[1]) }),
+  },
+
+  // ── 抽選：応募状況確認（単件） ───────────────────────────────────────────
+  {
+    method: 'GET',
+    pattern: /^\/events\/([\w-]+)\/applications\/([\w-]+)$/,
+    handle: (_req, m) => {
+      const app = db.getApplication(m[1], m[2]);
+      if (!app) return json({ error: 'not_found' }, 404);
+      return json(app);
+    },
+  },
+
+  // ── 抽選：抽選実行（開催者） ─────────────────────────────────────────────
+  {
+    method: 'POST',
+    pattern: /^\/events\/([\w-]+)\/draw$/,
+    handle: (req, m) => {
+      const eventId = m[1];
+      const { organizerId } = (req.body ?? {}) as { organizerId?: string };
+      if (!organizerId) return json({ error: 'organizerId_required' }, 400);
+      const evt = db.getEvent(eventId);
+      if (!evt) return json({ error: 'event_not_found' }, 404);
+      if (evt.organizerId !== organizerId) return json({ error: 'unauthorized' }, 403);
+      if (evt.selectionMode !== 'lottery') return json({ error: 'not_lottery' }, 400);
+      if (evt.lotteryStatus === 'drawn') return json({ error: 'already_drawn' }, 409);
+      const result = db.drawLottery(eventId);
+      return json({ success: true, ...result });
+    },
+  },
+
+  // ── 問い合わせ：送信 ─────────────────────────────────────────────────────
+  {
+    method: 'POST',
+    pattern: /^\/inquiries$/,
+    handle: (req) => {
+      const { kkpId, category, subject, body } = (req.body ?? {}) as {
+        kkpId?: string;
+        category?: 'app' | 'points' | 'event' | 'account' | 'other';
+        subject?: string;
+        body?: string;
+      };
+      if (!kkpId || !category || !subject || !body) {
+        return json({ error: 'missing_fields' }, 400);
+      }
+      const inquiry = db.addInquiry({ kkpId, category, subject, body });
+      return json({ success: true, inquiry }, 201);
+    },
+  },
+
+  // ── 問い合わせ：自分の履歴 ───────────────────────────────────────────────
+  {
+    method: 'GET',
+    pattern: /^\/users\/([\w-]+)\/inquiries$/,
+    handle: (_req, m) => json({ inquiries: db.listInquiries(m[1]) }),
+  },
+
+  // ── プッシュ通知：メッセージ一覧 ─────────────────────────────────────────
+  {
+    method: 'GET',
+    pattern: /^\/users\/([\w-]+)\/push-messages$/,
+    handle: (_req, m) => json({
+      messages: db.listPushMessages(m[1]),
+      unread: db.unreadPushCount(m[1]),
+    }),
+  },
+
+  // ── プッシュ通知：既読マーク ─────────────────────────────────────────────
+  {
+    method: 'POST',
+    pattern: /^\/users\/([\w-]+)\/push-messages\/read$/,
+    handle: (req, m) => {
+      const { id } = (req.body ?? {}) as { id?: string };
+      db.markPushRead(m[1], id);
+      return json({ success: true, unread: db.unreadPushCount(m[1]) });
+    },
+  },
+
+  // ── プッシュ通知：通知設定 ───────────────────────────────────────────────
+  {
+    method: 'GET',
+    pattern: /^\/users\/([\w-]+)\/push-preferences$/,
+    handle: (_req, m) => json(db.getPushPreferences(m[1])),
+  },
+  {
+    method: 'PUT',
+    pattern: /^\/users\/([\w-]+)\/push-preferences$/,
+    handle: (req, m) => json(db.updatePushPreferences(m[1], req.body ?? {})),
+  },
+
+  // ── プッシュ通知：トークン登録 ───────────────────────────────────────────
+  {
+    method: 'POST',
+    pattern: /^\/users\/([\w-]+)\/push-token$/,
+    handle: (req, m) => {
+      const { token } = (req.body ?? {}) as { token?: string };
+      if (!token) return json({ error: 'token_required' }, 400);
+      return json(db.registerPushToken(m[1], token));
+    },
   },
 ];
