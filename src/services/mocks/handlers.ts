@@ -365,6 +365,7 @@ export const handlers: Handler[] = [
         selectionMode: body.selectionMode ?? 'first-come',
         applicationDeadline: body.applicationDeadline,
         lotteryStatus: body.selectionMode === 'lottery' ? 'accepting' : undefined,
+        approvalStatus: 'pending',
       };
       db.addEvent(evt);
       return json(evt, 201);
@@ -767,6 +768,146 @@ export const handlers: Handler[] = [
       const { token } = (req.body ?? {}) as { token?: string };
       if (!token) return json({ error: 'token_required' }, 400);
       return json(db.registerPushToken(m[1], token));
+    },
+  },
+
+  // ── 開催者：自分のイベント一覧（承認状況含む） ───────────────────────────
+  {
+    method: 'GET',
+    pattern: /^\/organizers\/([\w-]+)\/events$/,
+    handle: (_req, m) => {
+      const organizerId = m[1];
+      const target = db.findTarget(organizerId);
+      if (!target || target.role !== 'organizer') {
+        return json({ error: 'forbidden' }, 403);
+      }
+      return json({ events: db.listMyEvents(organizerId) });
+    },
+  },
+
+  // ── 事務局：承認待ちイベント一覧 ─────────────────────────────────────────
+  {
+    method: 'GET',
+    pattern: /^\/secretariat\/events\/pending$/,
+    handle: () => json({ events: db.listPendingEvents() }),
+  },
+
+  // ── 事務局：イベント承認 ─────────────────────────────────────────────────
+  {
+    method: 'POST',
+    pattern: /^\/secretariat\/events\/([\w-]+)\/approve$/,
+    handle: (req, m) => {
+      const { secretariatId } = (req.body ?? {}) as { secretariatId?: string };
+      if (!secretariatId) return json({ error: 'secretariatId_required' }, 400);
+      const target = db.findTarget(secretariatId);
+      if (!target || target.role !== 'secretariat') {
+        return json({ error: 'forbidden' }, 403);
+      }
+      const evt = db.getEvent(m[1]);
+      if (!evt) return json({ error: 'event_not_found' }, 404);
+      if (evt.approvalStatus !== 'pending') {
+        return json({ error: 'not_pending', approvalStatus: evt.approvalStatus }, 400);
+      }
+      const updated = db.approveEvent(m[1], secretariatId);
+      return json(updated);
+    },
+  },
+
+  // ── 事務局：イベント差し戻し ─────────────────────────────────────────────
+  {
+    method: 'POST',
+    pattern: /^\/secretariat\/events\/([\w-]+)\/reject$/,
+    handle: (req, m) => {
+      const { secretariatId, reason } = (req.body ?? {}) as {
+        secretariatId?: string;
+        reason?: string;
+      };
+      if (!secretariatId) return json({ error: 'secretariatId_required' }, 400);
+      if (typeof reason !== 'string' || !reason.trim()) {
+        return json({ error: 'reason_required' }, 400);
+      }
+      const target = db.findTarget(secretariatId);
+      if (!target || target.role !== 'secretariat') {
+        return json({ error: 'forbidden' }, 403);
+      }
+      const evt = db.getEvent(m[1]);
+      if (!evt) return json({ error: 'event_not_found' }, 404);
+      if (evt.approvalStatus !== 'pending') {
+        return json({ error: 'not_pending', approvalStatus: evt.approvalStatus }, 400);
+      }
+      const updated = db.rejectEvent(m[1], secretariatId, reason.trim());
+      return json(updated);
+    },
+  },
+
+  // ── 事務局：お知らせ作成 ─────────────────────────────────────────────────
+  {
+    method: 'POST',
+    pattern: /^\/secretariat\/([\w-]+)\/notices$/,
+    handle: (req, m) => {
+      const secretariatId = m[1];
+      const target = db.findTarget(secretariatId);
+      if (!target || target.role !== 'secretariat') {
+        return json({ error: 'forbidden' }, 403);
+      }
+      const body = (req.body ?? {}) as {
+        title?: string;
+        body?: string;
+        important?: boolean;
+      };
+      if (typeof body.title !== 'string' || !body.title.trim()) {
+        return json({ error: 'title_required' }, 400);
+      }
+      if (typeof body.body !== 'string' || !body.body.trim()) {
+        return json({ error: 'body_required' }, 400);
+      }
+      const notice = db.createNotice({
+        title: body.title.trim(),
+        body: body.body.trim(),
+        important: Boolean(body.important),
+      });
+      return json(notice, 201);
+    },
+  },
+
+  // ── 事務局：お知らせ更新 ─────────────────────────────────────────────────
+  {
+    method: 'PUT',
+    pattern: /^\/secretariat\/([\w-]+)\/notices\/([\w-]+)$/,
+    handle: (req, m) => {
+      const secretariatId = m[1];
+      const target = db.findTarget(secretariatId);
+      if (!target || target.role !== 'secretariat') {
+        return json({ error: 'forbidden' }, 403);
+      }
+      const body = (req.body ?? {}) as {
+        title?: string;
+        body?: string;
+        important?: boolean;
+      };
+      const updated = db.updateNotice(m[2], {
+        title: typeof body.title === 'string' ? body.title.trim() : undefined,
+        body: typeof body.body === 'string' ? body.body.trim() : undefined,
+        important: typeof body.important === 'boolean' ? body.important : undefined,
+      });
+      if (!updated) return json({ error: 'not_found' }, 404);
+      return json(updated);
+    },
+  },
+
+  // ── 事務局：お知らせ削除 ─────────────────────────────────────────────────
+  {
+    method: 'DELETE',
+    pattern: /^\/secretariat\/([\w-]+)\/notices\/([\w-]+)$/,
+    handle: (_req, m) => {
+      const secretariatId = m[1];
+      const target = db.findTarget(secretariatId);
+      if (!target || target.role !== 'secretariat') {
+        return json({ error: 'forbidden' }, 403);
+      }
+      const ok = db.deleteNotice(m[2]);
+      if (!ok) return json({ error: 'not_found' }, 404);
+      return json({ success: true });
     },
   },
 ];

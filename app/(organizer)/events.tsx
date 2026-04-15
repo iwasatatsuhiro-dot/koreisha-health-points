@@ -75,6 +75,7 @@ function RegisterModal({
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['events'] });
+      qc.invalidateQueries({ queryKey: ['organizer-events'] });
       Alert.alert('登録完了', 'イベントを登録しました。事務局の承認後に公開されます。');
       onClose();
     },
@@ -232,6 +233,7 @@ function EditModal({
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['events'] });
+      qc.invalidateQueries({ queryKey: ['organizer-events'] });
       qc.invalidateQueries({ queryKey: ['event', event.id] });
       Alert.alert('更新完了', 'イベント情報を更新しました。');
       onClose();
@@ -408,6 +410,7 @@ function EventDetailModal({
     mutationFn: () => eventsApi.cancelEvent(event.id, organizerId),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['events'] });
+      qc.invalidateQueries({ queryKey: ['organizer-events'] });
       qc.invalidateQueries({ queryKey: ['event', event.id] });
       Alert.alert('中止しました', 'イベントを中止しました。参加者・応募者に通知されます。', [
         { text: 'OK', onPress: onClose },
@@ -431,6 +434,7 @@ function EventDetailModal({
     mutationFn: (kkpId: string) => eventsApi.checkIn(event.id, organizerId, kkpId),
     onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: ['events'] });
+      qc.invalidateQueries({ queryKey: ['organizer-events'] });
       Alert.alert('チェックイン完了', `${data.kkpId} に ${data.pointsAwarded}pt を付与しました。`);
     },
     onError: (err: any) => {
@@ -449,6 +453,7 @@ function EventDetailModal({
     mutationFn: () => eventsApi.draw(event.id, organizerId),
     onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: ['events'] });
+      qc.invalidateQueries({ queryKey: ['organizer-events'] });
       Alert.alert('抽選完了', `応募 ${data.drawn}名 中 ${data.won}名を当選としました。結果は各応募者へ通知されます。`);
     },
     onError: (err: any) => {
@@ -712,15 +717,18 @@ export default function OrganizerEventsScreen() {
   const [showRegister, setShowRegister] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState<AppEvent | null>(null);
 
-  const { data: events = [], isLoading } = useQuery({
-    queryKey: ['events'],
-    queryFn: eventsApi.listEvents,
+  const { data: myEvents = [], isLoading } = useQuery({
+    queryKey: ['organizer-events', kkpId],
+    queryFn: () => eventsApi.listMyEvents(kkpId!),
+    enabled: !!kkpId,
     staleTime: 30_000,
   });
 
-  const myEvents = events.filter((e) => e.organizerId === kkpId);
-  const openEvents = myEvents.filter((e) => e.status === 'open');
-  const pastEvents = myEvents.filter((e) => e.status !== 'open');
+  const pendingEvents = myEvents.filter((e) => e.approvalStatus === 'pending');
+  const rejectedEvents = myEvents.filter((e) => e.approvalStatus === 'rejected');
+  const approvedEvents = myEvents.filter((e) => e.approvalStatus === 'approved');
+  const openEvents = approvedEvents.filter((e) => e.status === 'open');
+  const pastEvents = approvedEvents.filter((e) => e.status !== 'open');
 
   return (
     <SafeAreaView style={styles.safe} edges={['bottom']}>
@@ -733,7 +741,53 @@ export default function OrganizerEventsScreen() {
           <AppText variant="body">読み込み中...</AppText>
         ) : (
           <>
-            <AppText variant="heading">開催予定のイベント</AppText>
+            {pendingEvents.length > 0 && (
+              <>
+                <AppText variant="heading">承認待ちのイベント</AppText>
+                {pendingEvents.map((evt) => (
+                  <TouchableOpacity key={evt.id} onPress={() => setSelectedEvent(evt)} activeOpacity={0.7}>
+                    <Card style={styles.eventCard}>
+                      <View style={styles.cardTitleRow}>
+                        <AppText variant="heading" style={{ flex: 1 }}>{evt.title}</AppText>
+                        <View style={styles.pendingBadge}>
+                          <AppText variant="caption" style={styles.pendingBadgeText}>承認待ち</AppText>
+                        </View>
+                      </View>
+                      <AppText variant="body" style={styles.muted}>{formatDate(evt.startAt)} · {evt.location}</AppText>
+                      <AppText variant="caption" style={styles.muted}>
+                        事務局の承認後、参加者へ公開されます。
+                      </AppText>
+                    </Card>
+                  </TouchableOpacity>
+                ))}
+              </>
+            )}
+
+            {rejectedEvents.length > 0 && (
+              <>
+                <AppText variant="heading" style={{ marginTop: spacing.md }}>差し戻されたイベント</AppText>
+                {rejectedEvents.map((evt) => (
+                  <TouchableOpacity key={evt.id} onPress={() => setSelectedEvent(evt)} activeOpacity={0.7}>
+                    <Card style={[styles.eventCard, styles.rejectedCard]}>
+                      <View style={styles.cardTitleRow}>
+                        <AppText variant="heading" style={{ flex: 1 }}>{evt.title}</AppText>
+                        <View style={styles.rejectedBadge}>
+                          <AppText variant="caption" style={styles.rejectedBadgeText}>差し戻し</AppText>
+                        </View>
+                      </View>
+                      <AppText variant="body" style={styles.muted}>{formatDate(evt.startAt)} · {evt.location}</AppText>
+                      {evt.rejectionReason && (
+                        <AppText variant="caption" style={styles.rejectionReason}>
+                          理由: {evt.rejectionReason}
+                        </AppText>
+                      )}
+                    </Card>
+                  </TouchableOpacity>
+                ))}
+              </>
+            )}
+
+            <AppText variant="heading" style={pendingEvents.length > 0 || rejectedEvents.length > 0 ? { marginTop: spacing.md } : undefined}>開催予定のイベント</AppText>
             {openEvents.length === 0 ? (
               <AppText variant="body" style={styles.empty}>開催予定のイベントはありません</AppText>
             ) : (
@@ -792,6 +846,23 @@ const styles = StyleSheet.create({
   container: { padding: spacing.lg, gap: spacing.md },
   eventCard: { gap: spacing.xs },
   pastCard: { opacity: 0.7 },
+  rejectedCard: { borderWidth: 2, borderColor: colors.danger },
+  cardTitleRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  pendingBadge: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+    backgroundColor: '#FEF3C7',
+    borderRadius: 999,
+  },
+  pendingBadgeText: { color: '#92400E', fontWeight: '700' },
+  rejectedBadge: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+    backgroundColor: colors.danger,
+    borderRadius: 999,
+  },
+  rejectedBadgeText: { color: '#FFFFFF', fontWeight: '700' },
+  rejectionReason: { color: colors.danger, marginTop: spacing.xs },
   muted: { color: colors.textMuted },
   participants: { color: colors.success, fontWeight: '700' },
   empty: { color: colors.textMuted },

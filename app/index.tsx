@@ -7,5 +7,6 @@ export default function Index() {
   if (!termsAcceptedAt) return <Redirect href="/(auth)/welcome" />;
   if (!kkpId) return <Redirect href="/(auth)/register" />;
   if (role === 'organizer') return <Redirect href="/(organizer)/home" />;
+  if (role === 'secretariat') return <Redirect href="/(secretariat)/home" />;
   return <Redirect href="/(user)/home" />;
 }

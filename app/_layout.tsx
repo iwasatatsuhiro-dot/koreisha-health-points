@@ -14,6 +14,7 @@ export default function RootLayout() {
           <Stack.Screen name="(auth)" />
           <Stack.Screen name="(user)" />
           <Stack.Screen name="(organizer)" />
+          <Stack.Screen name="(secretariat)" />
         </Stack>
         <StatusBar style="auto" />
       </QueryProvider>
