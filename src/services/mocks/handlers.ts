@@ -490,6 +490,13 @@ export const handlers: Handler[] = [
     handle: (_req, m) => json(db.assessFrailty(m[1])),
   },
 
+  // ── 健康状態変化メッセージ ───────────────────────────────────────────────
+  {
+    method: 'GET',
+    pattern: /^\/users\/([\w-]+)\/health-changes$/,
+    handle: (_req, m) => json(db.getHealthChanges(m[1])),
+  },
+
   // ── 抽選：応募 ───────────────────────────────────────────────────────────
   {
     method: 'POST',

@@ -4,6 +4,9 @@ import type {
   EventParticipation,
   FrailtyRiskAssessment,
   FrailtyRiskLevel,
+  HealthChangesResult,
+  HealthSnapshot,
+  HealthStateChange,
   HealthVideo,
   Inquiry,
   InquiryCategory,
@@ -437,6 +440,160 @@ function getOrSeedSteps(kkpId: string): StepsDaily[] {
 const vitalsByUser: Record<string, VitalReading[]> = {};
 let vitalsSeq = 1;
 
+// ── 健康状態スナップショット ───────────────────────────────────────────────
+
+const healthSnapshots: HealthSnapshot[] = [
+  {
+    id: 'HS-101',
+    kkpId: 'KKP-000001',
+    capturedAt: addDays(now, -45).toISOString(),
+    frailtyLevel: 'medium',
+    frailtyScore: 2,
+    avgWeeklySteps: 3200,
+    avgSystolic: 148,
+    avgDiastolic: 90,
+    weightKg: 62.5,
+  },
+  {
+    id: 'HS-102',
+    kkpId: 'KKP-000001',
+    capturedAt: addDays(now, -7).toISOString(),
+    frailtyLevel: 'low',
+    frailtyScore: 0,
+    avgWeeklySteps: 5600,
+    avgSystolic: 132,
+    avgDiastolic: 82,
+    weightKg: 61.3,
+  },
+  {
+    id: 'HS-201',
+    kkpId: 'KKP-000002',
+    capturedAt: addDays(now, -40).toISOString(),
+    frailtyLevel: 'low',
+    frailtyScore: 0,
+    avgWeeklySteps: 5800,
+    avgSystolic: 128,
+    avgDiastolic: 80,
+    weightKg: 55.0,
+  },
+  {
+    id: 'HS-202',
+    kkpId: 'KKP-000002',
+    capturedAt: addDays(now, -5).toISOString(),
+    frailtyLevel: 'medium',
+    frailtyScore: 2,
+    avgWeeklySteps: 3100,
+    avgSystolic: 142,
+    avgDiastolic: 88,
+    weightKg: 56.8,
+  },
+];
+let snapshotSeq = 300;
+
+const FRAILTY_ORDER: Record<FrailtyRiskLevel, number> = {
+  unknown: -1,
+  low: 0,
+  medium: 1,
+  high: 2,
+};
+
+function buildFrailtyChange(prev: HealthSnapshot, curr: HealthSnapshot): HealthStateChange | null {
+  if (prev.frailtyLevel === curr.frailtyLevel) return null;
+  const prevRank = FRAILTY_ORDER[prev.frailtyLevel];
+  const currRank = FRAILTY_ORDER[curr.frailtyLevel];
+  const improved = currRank < prevRank;
+  const levelLabel: Record<FrailtyRiskLevel, string> = {
+    low: '良好', medium: '注意', high: '要相談', unknown: '判定中',
+  };
+  return {
+    id: `HSC-${snapshotSeq++}`,
+    kkpId: curr.kkpId,
+    kind: 'frailty',
+    direction: improved ? 'improved' : 'worsened',
+    title: improved ? 'フレイルリスクが改善しました' : 'フレイルリスクが上がっています',
+    body: `${levelLabel[prev.frailtyLevel]} → ${levelLabel[curr.frailtyLevel]}（${
+      improved ? '良い変化' : '活動量や血圧の見直しをご検討ください'
+    }）`,
+    detectedAt: curr.capturedAt,
+  };
+}
+
+function buildStepsChange(prev: HealthSnapshot, curr: HealthSnapshot): HealthStateChange | null {
+  const diff = curr.avgWeeklySteps - prev.avgWeeklySteps;
+  if (Math.abs(diff) < 1000) return null;
+  const improved = diff > 0;
+  return {
+    id: `HSC-${snapshotSeq++}`,
+    kkpId: curr.kkpId,
+    kind: 'steps',
+    direction: improved ? 'improved' : 'worsened',
+    title: improved ? '平均歩数が増えています' : '平均歩数が減っています',
+    body: `${prev.avgWeeklySteps.toLocaleString()} 歩/日 → ${curr.avgWeeklySteps.toLocaleString()} 歩/日（${
+      improved ? '+' : ''
+    }${diff.toLocaleString()} 歩）`,
+    detectedAt: curr.capturedAt,
+  };
+}
+
+function buildBloodPressureChange(prev: HealthSnapshot, curr: HealthSnapshot): HealthStateChange | null {
+  if (prev.avgSystolic == null || curr.avgSystolic == null) return null;
+  const diff = curr.avgSystolic - prev.avgSystolic;
+  if (Math.abs(diff) < 10) return null;
+  const improved = diff < 0;
+  return {
+    id: `HSC-${snapshotSeq++}`,
+    kkpId: curr.kkpId,
+    kind: 'blood_pressure',
+    direction: improved ? 'improved' : 'worsened',
+    title: improved ? '血圧が改善傾向です' : '血圧が上昇しています',
+    body: `最高血圧 ${prev.avgSystolic} → ${curr.avgSystolic} mmHg`,
+    detectedAt: curr.capturedAt,
+  };
+}
+
+function buildWeightChange(prev: HealthSnapshot, curr: HealthSnapshot): HealthStateChange | null {
+  if (prev.weightKg == null || curr.weightKg == null) return null;
+  const diff = curr.weightKg - prev.weightKg;
+  if (Math.abs(diff) < 2) return null;
+  return {
+    id: `HSC-${snapshotSeq++}`,
+    kkpId: curr.kkpId,
+    kind: 'weight',
+    direction: 'stable',
+    title: diff > 0 ? '体重が増えています' : '体重が減っています',
+    body: `${prev.weightKg.toFixed(1)}kg → ${curr.weightKg.toFixed(1)}kg（${
+      diff > 0 ? '+' : ''
+    }${diff.toFixed(1)}kg）`,
+    detectedAt: curr.capturedAt,
+  };
+}
+
+function computeHealthChanges(kkpId: string): HealthChangesResult {
+  const snaps = healthSnapshots
+    .filter((s) => s.kkpId === kkpId)
+    .sort((a, b) => a.capturedAt.localeCompare(b.capturedAt));
+  if (snaps.length < 2) {
+    return {
+      changes: [],
+      previousSnapshotAt: null,
+      latestSnapshotAt: snaps[0]?.capturedAt ?? null,
+    };
+  }
+  const prev = snaps[snaps.length - 2];
+  const curr = snaps[snaps.length - 1];
+  const raw = [
+    buildFrailtyChange(prev, curr),
+    buildStepsChange(prev, curr),
+    buildBloodPressureChange(prev, curr),
+    buildWeightChange(prev, curr),
+  ];
+  return {
+    changes: raw.filter((c): c is HealthStateChange => c !== null),
+    previousSnapshotAt: prev.capturedAt,
+    latestSnapshotAt: curr.capturedAt,
+  };
+}
+
 // ── DB export ────────────────────────────────────────────────────────────────
 
 const nicknames: Record<string, string> = {};
@@ -748,6 +905,8 @@ export const db = {
   },
 
   // --- フレイルリスク判定 ---
+  getHealthChanges: (kkpId: string): HealthChangesResult => computeHealthChanges(kkpId),
+
   assessFrailty: (kkpId: string): FrailtyRiskAssessment => {
     const weekly = db.getWeeklySteps(kkpId);
     const avgSteps = weekly.total / 7;
