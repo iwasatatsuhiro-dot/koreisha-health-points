@@ -22,6 +22,7 @@ import type {
   VitalInput,
   VitalReading,
   HealthChangesResult,
+  WatchOverConfig,
 } from '@/src/types';
 
 export const targetSystemApi = {
@@ -66,6 +67,18 @@ export const secretariatApi = {
   withdraw: async (kkpId: string) => {
     const res = await apiClient.post(`/secretariat/users/${kkpId}/withdraw`, {});
     return res.data as { success: boolean; kkpId: string };
+  },
+  getWatchOver: async (kkpId: string) => {
+    const res = await apiClient.get(`/secretariat/users/${kkpId}/watch-over`);
+    return res.data as WatchOverConfig;
+  },
+  updateWatchOver: async (kkpId: string, patch: Partial<WatchOverConfig>) => {
+    const res = await apiClient.put(`/secretariat/users/${kkpId}/watch-over`, patch);
+    return res.data as WatchOverConfig;
+  },
+  pingActivity: async (kkpId: string) => {
+    const res = await apiClient.post(`/secretariat/users/${kkpId}/watch-over/ping`, {});
+    return res.data as WatchOverConfig;
   },
 };
 

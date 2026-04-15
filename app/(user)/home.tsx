@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { View, ScrollView, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 
 import { AppText } from '@/src/components/ui/AppText';
@@ -16,6 +16,7 @@ import {
   missionsApi,
   healthChangesApi,
 } from '@/src/services/api/endpoints';
+import { isWinterMonth, WINTER_VIDEO_BONUS } from '@/src/utils/season';
 import { useAuthStore } from '@/src/stores/authStore';
 import {
   useDailySteps,
@@ -123,6 +124,16 @@ export default function Home() {
     }
   }, [pedometer, kkpId, dailySteps.data?.count, syncSteps]);
 
+  const pingActivity = useMutation({
+    mutationFn: () => secretariatApi.pingActivity(kkpId!),
+  });
+  useEffect(() => {
+    if (kkpId) pingActivity.mutate();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [kkpId]);
+
+  const winter = isWinterMonth();
+
   const todayCount =
     pedometer && pedometer.status === 'ok' ? pedometer.count : dailySteps.data?.count ?? 0;
   const goal = dailySteps.data?.goal ?? 6000;
@@ -133,6 +144,30 @@ export default function Home() {
       <ScrollView contentContainerStyle={styles.container}>
         <AppText variant="title">こんにちは{nickname ? `、${nickname}さん` : ''}</AppText>
         <AppText variant="caption">KKP-ID: {kkpId}</AppText>
+
+        {winter && (
+          <Card style={styles.winterCard}>
+            <AppText variant="heading" style={styles.winterTitle}>❄ 冬季モード</AppText>
+            <AppText variant="body">
+              雪道で歩くのが難しい時期です。歩数目標を {goal.toLocaleString()} 歩に引き下げ、
+              動画視聴ポイントを {WINTER_VIDEO_BONUS} 倍にしています。
+            </AppText>
+            <View style={styles.winterActions}>
+              <AppButton
+                label="健康動画を見る"
+                variant="secondary"
+                onPress={() => router.push('/(user)/videos')}
+                style={styles.winterBtn}
+              />
+              <AppButton
+                label="イベントに参加"
+                variant="secondary"
+                onPress={() => router.push('/(user)/events')}
+                style={styles.winterBtn}
+              />
+            </View>
+          </Card>
+        )}
 
         <Card>
           <AppText variant="heading">本日の歩数</AppText>
@@ -375,4 +410,13 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.xs,
     gap: spacing.xs,
   },
+  winterCard: {
+    borderWidth: 2,
+    borderColor: colors.primary,
+    backgroundColor: '#EAF2FA',
+    gap: spacing.sm,
+  },
+  winterTitle: { color: colors.primary },
+  winterActions: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.xs },
+  winterBtn: { flex: 1 },
 });

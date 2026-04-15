@@ -29,6 +29,19 @@ export type UserProfile = {
   ward?: string;
 };
 
+export type EmergencyContact = {
+  name: string;
+  relation: string;
+  phone: string;
+};
+
+export type WatchOverConfig = {
+  enabled: boolean;
+  emergencyContact: EmergencyContact | null;
+  inactivityAlertDays: 1 | 3 | 7 | 14;
+  lastActiveAt: string | null;
+};
+
 export type PointBalance = {
   current: number;
   breakdown: Array<{ category: string; earned: number; overflow: number }>;
