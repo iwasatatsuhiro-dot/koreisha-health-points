@@ -15,6 +15,8 @@ export default function OrganizerLayout() {
       <Tabs.Screen name="home" options={{ title: 'ホーム' }} />
       <Tabs.Screen name="events" options={{ title: 'イベント管理' }} />
       <Tabs.Screen name="settings" options={{ title: '設定' }} />
+      <Tabs.Screen name="terms" options={{ href: null, title: '利用規約' }} />
+      <Tabs.Screen name="withdraw" options={{ href: null, title: '退会' }} />
     </Tabs>
   );
 }

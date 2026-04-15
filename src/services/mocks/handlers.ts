@@ -55,7 +55,42 @@ export const handlers: Handler[] = [
       if (!kkpId) return json({ error: 'kkpId_required' }, 400);
       const target = db.findTarget(kkpId);
       if (!target) return json({ error: 'unknown_kkp_id' }, 404);
-      return json({ kkpId: target.kkpId, role: target.role, ageBand: target.ageBand, ward: target.ward });
+      if (target.status !== 'active') return json({ error: 'ineligible' }, 403);
+      return json({
+        kkpId: target.kkpId,
+        role: target.role,
+        ageBand: target.ageBand,
+        ward: target.ward,
+        nickname: db.getNickname(target.kkpId) ?? undefined,
+      });
+    },
+  },
+
+  // ── 事務局システム：ニックネーム更新 ─────────────────────────────────────
+  {
+    method: 'PUT',
+    pattern: /^\/secretariat\/users\/([\w-]+)\/nickname$/,
+    handle: (req, m) => {
+      const nickname = req.body?.nickname as string | undefined;
+      if (typeof nickname !== 'string' || !nickname.trim()) {
+        return json({ error: 'nickname_required' }, 400);
+      }
+      const trimmed = nickname.trim();
+      if (trimmed.length > 20) return json({ error: 'nickname_too_long' }, 400);
+      const target = db.findTarget(m[1]);
+      if (!target) return json({ error: 'not_found' }, 404);
+      return json(db.setNickname(m[1], trimmed));
+    },
+  },
+
+  // ── 事務局システム：退会 ─────────────────────────────────────────────────
+  {
+    method: 'POST',
+    pattern: /^\/secretariat\/users\/([\w-]+)\/withdraw$/,
+    handle: (_req, m) => {
+      const ok = db.withdraw(m[1]);
+      if (!ok) return json({ error: 'not_found' }, 404);
+      return json({ success: true, kkpId: m[1] });
     },
   },
 

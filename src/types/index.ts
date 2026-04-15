@@ -7,6 +7,7 @@ export type AuthState = {
   role: UserRole | null;
   nickname: string | null;
   termsAcceptedAt: string | null;
+  tutorialCompletedAt: string | null;
 };
 
 export type UserProfile = {

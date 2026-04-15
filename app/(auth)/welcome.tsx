@@ -5,14 +5,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { AppText } from '@/src/components/ui/AppText';
 import { AppButton } from '@/src/components/ui/AppButton';
 import { useAuthStore } from '@/src/stores/authStore';
+import { TERMS_TEXT } from '@/src/constants/terms';
 import { colors, spacing } from '@/src/theme';
-
-const TERMS = `本アプリは、札幌市高齢者向け健康ポイント事業の一環として提供されます。
-
-・アプリでは個人情報を扱いません。札幌市が発行する KKP-ID により活動を記録します。
-・歩数等のヘルスケア情報は、端末内のセンサーから自動的に取得され、ポイント付与のために事務局システムへ連携されます。
-・イベント参加時のQRコード読み取りに際し、不正防止のため位置情報を利用することがあります。
-・アプリのご利用には利用規約への同意が必要です。`;
 
 export default function Welcome() {
   const acceptTerms = useAuthStore((s) => s.acceptTerms);
@@ -29,7 +23,7 @@ export default function Welcome() {
           <AppText variant="heading" style={{ marginBottom: spacing.sm }}>
             利用規約
           </AppText>
-          <AppText variant="body">{TERMS}</AppText>
+          <AppText variant="body">{TERMS_TEXT}</AppText>
         </View>
 
         <AppButton
