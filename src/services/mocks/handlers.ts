@@ -279,6 +279,59 @@ export const handlers: Handler[] = [
     },
   },
 
+  // ── イベント編集（開催者） ───────────────────────────────────────────────
+  {
+    method: 'PUT',
+    pattern: /^\/events\/([\w-]+)$/,
+    handle: (req, m) => {
+      const eventId = m[1];
+      const body = (req.body ?? {}) as Record<string, unknown>;
+      const organizerId = body.organizerId as string | undefined;
+      if (!organizerId) return json({ error: 'organizerId_required' }, 400);
+      const evt = db.getEvent(eventId);
+      if (!evt) return json({ error: 'event_not_found' }, 404);
+      if (evt.organizerId !== organizerId) return json({ error: 'forbidden' }, 403);
+      if (evt.status === 'cancelled') return json({ error: 'event_cancelled' }, 400);
+      const patch: Partial<AppEvent> = {};
+      if (typeof body.title === 'string' && body.title.trim()) patch.title = body.title.trim();
+      if (typeof body.description === 'string') patch.description = body.description;
+      if (typeof body.location === 'string' && body.location.trim()) patch.location = body.location.trim();
+      if (typeof body.pointsAwarded === 'number' && body.pointsAwarded >= 0) patch.pointsAwarded = body.pointsAwarded;
+      if (typeof body.maxParticipants === 'number' && body.maxParticipants > 0) patch.maxParticipants = body.maxParticipants;
+      const updated = db.updateEvent(eventId, patch);
+      return json(updated);
+    },
+  },
+
+  // ── イベント中止（開催者） ───────────────────────────────────────────────
+  {
+    method: 'POST',
+    pattern: /^\/events\/([\w-]+)\/cancel$/,
+    handle: (req, m) => {
+      const eventId = m[1];
+      const organizerId = (req.body as { organizerId?: string } | undefined)?.organizerId;
+      if (!organizerId) return json({ error: 'organizerId_required' }, 400);
+      const evt = db.getEvent(eventId);
+      if (!evt) return json({ error: 'event_not_found' }, 404);
+      if (evt.organizerId !== organizerId) return json({ error: 'forbidden' }, 403);
+      if (evt.status === 'cancelled') return json({ error: 'already_cancelled' }, 400);
+      const updated = db.cancelEvent(eventId);
+      return json(updated);
+    },
+  },
+
+  // ── 参加者名簿（開催者） ───────────────────────────────────────────────
+  {
+    method: 'GET',
+    pattern: /^\/events\/([\w-]+)\/roster$/,
+    handle: (_req, m) => {
+      const eventId = m[1];
+      const roster = db.getRoster(eventId);
+      if (!roster) return json({ error: 'event_not_found' }, 404);
+      return json(roster);
+    },
+  },
+
   // ── イベント登録（開催者） ───────────────────────────────────────────────
   {
     method: 'POST',

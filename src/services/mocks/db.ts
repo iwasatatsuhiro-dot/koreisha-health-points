@@ -4,6 +4,8 @@ import type {
   EmergencyContact,
   EventApplication,
   EventParticipation,
+  EventRoster,
+  EventRosterEntry,
   FrailtyRiskAssessment,
   FrailtyRiskLevel,
   HealthChangesResult,
@@ -707,6 +709,76 @@ export const db = {
   listEvents: () => [...events].sort((a, b) => a.startAt.localeCompare(b.startAt)),
   getEvent,
   addEvent: (evt: AppEvent) => events.push(evt),
+  updateEvent: (id: string, patch: Partial<AppEvent>): AppEvent | null => {
+    const evt = getEvent(id);
+    if (!evt) return null;
+    const allowed: (keyof AppEvent)[] = [
+      'title', 'description', 'location', 'pointsAwarded', 'maxParticipants',
+    ];
+    for (const key of allowed) {
+      if (key in patch && patch[key] !== undefined) {
+        (evt as Record<string, unknown>)[key] = patch[key];
+      }
+    }
+    return evt;
+  },
+  cancelEvent: (id: string): AppEvent | null => {
+    const evt = getEvent(id);
+    if (!evt) return null;
+    evt.status = 'cancelled';
+    // 参加者 / 応募者へ中止通知
+    const affected = new Set<string>([
+      ...participations.filter((p) => p.eventId === id).map((p) => p.kkpId),
+      ...applications.filter((a) => a.eventId === id).map((a) => a.kkpId),
+    ]);
+    affected.forEach((kkpId) => {
+      pushMessages.push({
+        id: `PN-${pushSeq++}`,
+        kkpId,
+        category: 'notice',
+        title: 'イベント中止のお知らせ',
+        body: `「${evt.title}」は中止となりました。ご了承ください。`,
+        sentAt: new Date().toISOString(),
+        data: { eventId: id },
+      });
+    });
+    return evt;
+  },
+  getRoster: (eventId: string): EventRoster | null => {
+    const evt = getEvent(eventId);
+    if (!evt) return null;
+    const apps = applications.filter((a) => a.eventId === eventId);
+    const parts = participations.filter((p) => p.eventId === eventId);
+    const kkpIds = new Set<string>([
+      ...apps.map((a) => a.kkpId),
+      ...parts.map((p) => p.kkpId),
+    ]);
+    const entries: EventRosterEntry[] = Array.from(kkpIds).map((kkpId) => {
+      const app = apps.find((a) => a.kkpId === kkpId) ?? null;
+      const part = parts.find((p) => p.kkpId === kkpId) ?? null;
+      return {
+        kkpId,
+        nickname: nicknames[kkpId] ?? null,
+        applicationStatus: app ? app.result : 'none',
+        appliedAt: app?.appliedAt ?? null,
+        checkedIn: !!part,
+        checkedInAt: part?.participatedAt ?? null,
+        pointsAwarded: part?.pointsAwarded ?? null,
+      };
+    });
+    entries.sort((a, b) => {
+      if (a.checkedIn !== b.checkedIn) return a.checkedIn ? -1 : 1;
+      return a.kkpId.localeCompare(b.kkpId);
+    });
+    return {
+      eventId,
+      capacity: evt.maxParticipants ?? null,
+      appliedCount: apps.length,
+      winnerCount: apps.filter((a) => a.result === 'won').length,
+      checkedInCount: parts.length,
+      entries,
+    };
+  },
   getParticipations: (kkpId: string) => participations.filter((p) => p.kkpId === kkpId),
   getEventParticipations: (eventId: string) => participations.filter((p) => p.eventId === eventId),
   hasParticipated: (eventId: string, kkpId: string) =>
