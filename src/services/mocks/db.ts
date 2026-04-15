@@ -441,6 +441,9 @@ let vitalsSeq = 1;
 
 const nicknames: Record<string, string> = {};
 
+type ActiveDeviceRecord = { deviceId: string; boundAt: string };
+const activeDevices: Record<string, ActiveDeviceRecord> = {};
+
 export const db = {
   // --- ターゲット ---
   findTarget: (kkpId: string) => targets[kkpId] ?? null,
@@ -459,7 +462,20 @@ export const db = {
     delete nicknames[kkpId];
     delete pushPreferences[kkpId];
     delete pushTokens[kkpId];
+    delete activeDevices[kkpId];
     return true;
+  },
+
+  // --- 端末バインディング（単一端末運用） ---
+  getActiveDevice: (kkpId: string): ActiveDeviceRecord | null =>
+    activeDevices[kkpId] ?? null,
+  bindDevice: (kkpId: string, deviceId: string): ActiveDeviceRecord => {
+    const rec = { deviceId, boundAt: new Date().toISOString() };
+    activeDevices[kkpId] = rec;
+    return rec;
+  },
+  unbindDevice: (kkpId: string) => {
+    delete activeDevices[kkpId];
   },
 
   // --- ポイント ---

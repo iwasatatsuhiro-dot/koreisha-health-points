@@ -11,7 +11,7 @@ import { colors, spacing } from '@/src/theme';
 
 export default function OrganizerSettings() {
   const router = useRouter();
-  const { kkpId, signOut } = useAuthStore();
+  const { kkpId, signOut, deviceId } = useAuthStore();
 
   function handleSignOut() {
     signOut();
@@ -34,6 +34,18 @@ export default function OrganizerSettings() {
           <AppText variant="caption" style={styles.hint}>
             このQRコードはあなたの開催者IDです
           </AppText>
+        </Card>
+
+        <Card>
+          <AppText variant="heading">ご利用の端末</AppText>
+          <AppText variant="body" style={styles.hint}>
+            この端末でご利用中です（1つの ORG-ID は1台の端末でのみ利用できます）
+          </AppText>
+          {deviceId && (
+            <AppText variant="caption" style={styles.hint}>
+              端末ID: {deviceId.slice(0, 16)}…
+            </AppText>
+          )}
         </Card>
 
         <Card>
