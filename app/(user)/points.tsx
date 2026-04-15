@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { ScrollView, StyleSheet, View, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useRouter } from 'expo-router';
 
 import { AppText } from '@/src/components/ui/AppText';
 import { AppButton } from '@/src/components/ui/AppButton';
@@ -9,25 +10,12 @@ import { Card } from '@/src/components/ui/Card';
 import { secretariatApi, paymentGwApi } from '@/src/services/api/endpoints';
 import { useAuthStore } from '@/src/stores/authStore';
 import { colors, spacing } from '@/src/theme';
+import {
+  EARNING_CATEGORIES,
+  POINT_CATEGORY_COLOR as CATEGORY_COLOR,
+  POINT_CATEGORY_LABEL as CATEGORY_LABEL,
+} from '@/src/constants/points';
 import type { ExchangeProvider, PointHistoryCategory } from '@/src/types';
-
-const CATEGORY_LABEL: Record<PointHistoryCategory, string> = {
-  walk: '歩数',
-  event: 'イベント',
-  video: '動画視聴',
-  survey: 'アンケート',
-  manual: '手動付与',
-  exchange: 'ポイント交換',
-};
-
-const CATEGORY_COLOR: Record<PointHistoryCategory, string> = {
-  walk: '#1E8449',
-  event: '#2471A3',
-  video: '#7D3C98',
-  survey: '#D35400',
-  manual: '#717D7E',
-  exchange: '#C0392B',
-};
 
 function formatDate(iso: string): string {
   const d = new Date(iso);
@@ -37,6 +25,7 @@ function formatDate(iso: string): string {
 export default function PointsScreen() {
   const kkpId = useAuthStore((s) => s.kkpId)!;
   const qc = useQueryClient();
+  const router = useRouter();
   const [selectedProvider, setSelectedProvider] = useState<ExchangeProvider | null>(null);
   const [exchangePoints, setExchangePoints] = useState(100);
 
@@ -116,19 +105,41 @@ export default function PointsScreen() {
             {balance?.current ?? 0}
             <AppText variant="body"> pt</AppText>
           </AppText>
-          {balance?.breakdown && balance.breakdown.length > 0 && (
-            <View style={styles.breakdown}>
-              {balance.breakdown.filter((b) => b.earned > 0).map((b) => (
-                <View key={b.category} style={styles.breakdownRow}>
-                  <View style={[styles.dot, { backgroundColor: CATEGORY_COLOR[b.category as PointHistoryCategory] }]} />
-                  <AppText variant="caption" style={styles.breakdownLabel}>
-                    {CATEGORY_LABEL[b.category as PointHistoryCategory]}
-                  </AppText>
-                  <AppText variant="caption" style={styles.breakdownValue}>{b.earned}pt</AppText>
-                </View>
-              ))}
-            </View>
-          )}
+          {balance?.breakdown && balance.breakdown.length > 0 && (() => {
+            const earnedRows = balance.breakdown.filter((b) => b.earned > 0);
+            const total = earnedRows.reduce((s, b) => s + b.earned, 0);
+            return (
+              <View style={styles.breakdown}>
+                {total > 0 && (
+                  <View style={styles.proportionBar}>
+                    {earnedRows.map((b) => (
+                      <View
+                        key={b.category}
+                        style={{
+                          flex: b.earned / total,
+                          backgroundColor: CATEGORY_COLOR[b.category as PointHistoryCategory],
+                        }}
+                      />
+                    ))}
+                  </View>
+                )}
+                {earnedRows.map((b) => (
+                  <View key={b.category} style={styles.breakdownRow}>
+                    <View style={[styles.dot, { backgroundColor: CATEGORY_COLOR[b.category as PointHistoryCategory] }]} />
+                    <AppText variant="caption" style={styles.breakdownLabel}>
+                      {CATEGORY_LABEL[b.category as PointHistoryCategory]}
+                    </AppText>
+                    <AppText variant="caption" style={styles.breakdownValue}>{b.earned}pt</AppText>
+                  </View>
+                ))}
+              </View>
+            );
+          })()}
+          <AppButton
+            label="ポイント内訳の詳細を見る"
+            variant="secondary"
+            onPress={() => router.push('/(user)/point-breakdown')}
+          />
         </Card>
 
         {/* ポイント交換 */}
@@ -172,6 +183,11 @@ export default function PointsScreen() {
               />
             </>
           )}
+          <AppButton
+            label="交換履歴を見る"
+            variant="ghost"
+            onPress={() => router.push('/(user)/exchange-history')}
+          />
         </Card>
 
         {/* ポイント履歴 */}
@@ -218,6 +234,14 @@ const styles = StyleSheet.create({
   balanceLabel: { color: colors.textMuted },
   balanceValue: { color: colors.primary, fontSize: 48 },
   breakdown: { width: '100%', gap: spacing.xs, marginTop: spacing.sm },
+  proportionBar: {
+    flexDirection: 'row',
+    height: 16,
+    borderRadius: 8,
+    overflow: 'hidden',
+    backgroundColor: colors.surface,
+    marginBottom: spacing.xs,
+  },
   breakdownRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   dot: { width: 10, height: 10, borderRadius: 5 },
   breakdownLabel: { flex: 1, color: colors.textMuted },

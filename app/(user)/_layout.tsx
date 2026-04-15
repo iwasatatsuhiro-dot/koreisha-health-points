@@ -34,6 +34,8 @@ export default function UserLayout() {
       <Tabs.Screen name="tutorial" options={{ href: null, title: '使い方ガイド' }} />
       <Tabs.Screen name="nickname" options={{ href: null, title: 'ニックネーム' }} />
       <Tabs.Screen name="withdraw" options={{ href: null, title: '退会' }} />
+      <Tabs.Screen name="point-breakdown" options={{ href: null, title: 'ポイント内訳' }} />
+      <Tabs.Screen name="exchange-history" options={{ href: null, title: '交換履歴' }} />
     </Tabs>
   );
 }
