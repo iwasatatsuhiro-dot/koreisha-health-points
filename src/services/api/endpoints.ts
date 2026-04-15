@@ -3,6 +3,8 @@ import type {
   AppEvent,
   BadgeListResult,
   EventApplication,
+  EventFeedback,
+  EventFeedbackSummary,
   EventRoster,
   EventUpdateInput,
   ExchangeProvider,
@@ -175,6 +177,18 @@ export const eventsApi = {
   checkIn: async (eventId: string, organizerId: string, kkpId: string) => {
     const res = await apiClient.post(`/events/${eventId}/check-in`, { organizerId, kkpId });
     return res.data as { success: boolean; kkpId: string; pointsAwarded: number };
+  },
+  getMyFeedback: async (eventId: string, kkpId: string) => {
+    const res = await apiClient.get(`/events/${eventId}/my-feedback/${kkpId}`);
+    return res.data as { feedback: EventFeedback | null; participated: boolean };
+  },
+  submitFeedback: async (eventId: string, kkpId: string, rating: 1 | 2 | 3 | 4 | 5, comment: string) => {
+    const res = await apiClient.post(`/events/${eventId}/feedback`, { kkpId, rating, comment });
+    return res.data as { success: boolean; feedback: EventFeedback; updated: boolean };
+  },
+  getFeedbackSummary: async (eventId: string, organizerId: string) => {
+    const res = await apiClient.get(`/events/${eventId}/feedback/${organizerId}`);
+    return res.data as EventFeedbackSummary;
   },
 };
 

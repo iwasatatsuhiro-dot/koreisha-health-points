@@ -1,5 +1,5 @@
-import { useState, useRef } from 'react';
-import { View, ScrollView, StyleSheet, Alert, Modal, TouchableOpacity } from 'react-native';
+import { useEffect, useState, useRef } from 'react';
+import { View, ScrollView, StyleSheet, Alert, Modal, TextInput, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -48,6 +48,35 @@ export default function EventDetail() {
     queryKey: ['event', id],
     queryFn: () => eventsApi.getEvent(id),
     enabled: !!id,
+  });
+
+  const myFeedback = useQuery({
+    queryKey: ['event-feedback', id, kkpId],
+    queryFn: () => eventsApi.getMyFeedback(id, kkpId),
+    enabled: !!id && !!kkpId,
+  });
+
+  const [rating, setRating] = useState<1 | 2 | 3 | 4 | 5>(5);
+  const [comment, setComment] = useState('');
+
+  useEffect(() => {
+    if (myFeedback.data?.feedback) {
+      setRating(myFeedback.data.feedback.rating);
+      setComment(myFeedback.data.feedback.comment);
+    }
+  }, [myFeedback.data?.feedback]);
+
+  const feedbackMutation = useMutation({
+    mutationFn: () => eventsApi.submitFeedback(id, kkpId, rating, comment),
+    onSuccess: (data) => {
+      qc.invalidateQueries({ queryKey: ['event-feedback', id, kkpId] });
+      Alert.alert(data.updated ? '更新しました' : 'ご協力ありがとうございました', 'フィードバックを受け付けました。');
+    },
+    onError: (err: any) => {
+      const code = err?.response?.data?.error;
+      if (code === 'not_participated') Alert.alert('参加者のみ回答可能です');
+      else Alert.alert('エラー', 'フィードバックを送信できませんでした。');
+    },
   });
 
   const application = useQuery({
@@ -260,6 +289,53 @@ export default function EventDetail() {
             </View>
           </Card>
         )}
+        {myFeedback.data?.participated && (
+          <Card style={styles.actionCard}>
+            <AppText variant="heading">イベント評価・フィードバック</AppText>
+            <AppText variant="caption" style={styles.actionNote}>
+              参加されたイベントはいかがでしたか。1〜5の評価とご感想をお寄せください。
+            </AppText>
+            <View style={styles.ratingRow}>
+              {[1, 2, 3, 4, 5].map((n) => (
+                <TouchableOpacity
+                  key={n}
+                  onPress={() => setRating(n as 1 | 2 | 3 | 4 | 5)}
+                  style={styles.starBtn}
+                  accessibilityLabel={`${n}つ星`}
+                >
+                  <AppText style={[styles.star, n <= rating ? styles.starOn : styles.starOff]}>
+                    ★
+                  </AppText>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <TextInput
+              value={comment}
+              onChangeText={setComment}
+              placeholder="ご感想・ご意見をお書きください（任意）"
+              placeholderTextColor={colors.textMuted}
+              multiline
+              numberOfLines={4}
+              style={styles.textArea}
+            />
+            <AppButton
+              label={
+                feedbackMutation.isPending
+                  ? '送信中...'
+                  : myFeedback.data?.feedback
+                    ? 'フィードバックを更新'
+                    : 'フィードバックを送信'
+              }
+              onPress={() => feedbackMutation.mutate()}
+              disabled={feedbackMutation.isPending}
+            />
+            {myFeedback.data?.feedback && (
+              <AppText variant="caption" style={styles.actionNote}>
+                送信済み：{new Date(myFeedback.data.feedback.submittedAt).toLocaleString('ja-JP')}
+              </AppText>
+            )}
+          </Card>
+        )}
       </ScrollView>
 
       <Modal visible={scannerOpen} animationType="slide" onRequestClose={() => setScannerOpen(false)}>
@@ -396,4 +472,19 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   qrId: { color: colors.textMuted, fontWeight: '700' },
+  ratingRow: { flexDirection: 'row', justifyContent: 'center', gap: spacing.xs },
+  starBtn: { padding: spacing.xs },
+  star: { fontSize: 36, lineHeight: 40 },
+  starOn: { color: colors.accent },
+  starOff: { color: colors.border },
+  textArea: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radii.md,
+    padding: spacing.md,
+    fontSize: 18,
+    minHeight: 100,
+    textAlignVertical: 'top',
+    color: colors.text,
+  },
 });

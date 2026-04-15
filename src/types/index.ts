@@ -182,6 +182,23 @@ export type BadgeListResult = {
   newlyUnlocked: string[];
 };
 
+export type EventFeedback = {
+  id: string;
+  eventId: string;
+  kkpId: string;
+  rating: 1 | 2 | 3 | 4 | 5;
+  comment: string;
+  submittedAt: string;
+};
+
+export type EventFeedbackSummary = {
+  eventId: string;
+  count: number;
+  averageRating: number | null;
+  distribution: Record<'1' | '2' | '3' | '4' | '5', number>;
+  recentComments: Array<{ rating: number; comment: string; submittedAt: string }>;
+};
+
 export type PointHistoryCategory = 'walk' | 'event' | 'video' | 'survey' | 'manual' | 'exchange';
 
 export type PointHistory = {

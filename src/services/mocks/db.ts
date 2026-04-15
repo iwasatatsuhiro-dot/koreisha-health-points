@@ -7,6 +7,8 @@ import type {
   BadgeStatus,
   EmergencyContact,
   EventApplication,
+  EventFeedback,
+  EventFeedbackSummary,
   EventParticipation,
   EventRoster,
   EventRosterEntry,
@@ -138,6 +140,9 @@ const events: AppEvent[] = [
 const applications: EventApplication[] = [];
 
 const participations: EventParticipation[] = [];
+
+const eventFeedback: EventFeedback[] = [];
+let feedbackSeq = 1;
 
 function getEvent(id: string): AppEvent | null {
   return events.find((e) => e.id === id) ?? null;
@@ -865,6 +870,56 @@ export const db = {
     participations.push(p);
     const evt = getEvent(p.eventId);
     if (evt) evt.participantCount += 1;
+  },
+
+  // --- イベントフィードバック ---
+  getMyEventFeedback: (eventId: string, kkpId: string): EventFeedback | null =>
+    eventFeedback.find((f) => f.eventId === eventId && f.kkpId === kkpId) ?? null,
+  submitEventFeedback: (
+    eventId: string,
+    kkpId: string,
+    rating: 1 | 2 | 3 | 4 | 5,
+    comment: string,
+  ): { feedback: EventFeedback; alreadySubmitted: boolean } => {
+    const existing = eventFeedback.find((f) => f.eventId === eventId && f.kkpId === kkpId);
+    if (existing) {
+      existing.rating = rating;
+      existing.comment = comment;
+      existing.submittedAt = new Date().toISOString();
+      return { feedback: existing, alreadySubmitted: true };
+    }
+    const feedback: EventFeedback = {
+      id: `EF-${feedbackSeq++}`,
+      eventId,
+      kkpId,
+      rating,
+      comment,
+      submittedAt: new Date().toISOString(),
+    };
+    eventFeedback.push(feedback);
+    return { feedback, alreadySubmitted: false };
+  },
+  getEventFeedbackSummary: (eventId: string): EventFeedbackSummary => {
+    const list = eventFeedback.filter((f) => f.eventId === eventId);
+    const distribution = { '1': 0, '2': 0, '3': 0, '4': 0, '5': 0 } as Record<'1' | '2' | '3' | '4' | '5', number>;
+    let total = 0;
+    for (const f of list) {
+      distribution[String(f.rating) as '1' | '2' | '3' | '4' | '5'] += 1;
+      total += f.rating;
+    }
+    const averageRating = list.length > 0 ? Math.round((total / list.length) * 10) / 10 : null;
+    const recentComments = [...list]
+      .filter((f) => f.comment.trim().length > 0)
+      .sort((a, b) => b.submittedAt.localeCompare(a.submittedAt))
+      .slice(0, 5)
+      .map((f) => ({ rating: f.rating, comment: f.comment, submittedAt: f.submittedAt }));
+    return {
+      eventId,
+      count: list.length,
+      averageRating,
+      distribution,
+      recentComments,
+    };
   },
 
   // --- 抽選イベント ---

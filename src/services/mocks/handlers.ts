@@ -462,6 +462,65 @@ export const handlers: Handler[] = [
     },
   },
 
+  // ── イベントフィードバック：自分の回答 ──────────────────────────────────
+  {
+    method: 'GET',
+    pattern: /^\/events\/([\w-]+)\/my-feedback\/([\w-]+)$/,
+    handle: (_req, m) => {
+      const eventId = m[1];
+      const kkpId = m[2];
+      const feedback = db.getMyEventFeedback(eventId, kkpId);
+      const participated = db.hasParticipated(eventId, kkpId);
+      return json({ feedback, participated });
+    },
+  },
+
+  // ── イベントフィードバック：送信 ───────────────────────────────────────
+  {
+    method: 'POST',
+    pattern: /^\/events\/([\w-]+)\/feedback$/,
+    handle: (req, m) => {
+      const eventId = m[1];
+      const { kkpId, rating, comment } = (req.body ?? {}) as {
+        kkpId?: string;
+        rating?: number;
+        comment?: string;
+      };
+      if (!kkpId || !rating) return json({ error: 'missing_fields' }, 400);
+      if (rating < 1 || rating > 5 || !Number.isInteger(rating)) return json({ error: 'invalid_rating' }, 400);
+      const evt = db.getEvent(eventId);
+      if (!evt) return json({ error: 'event_not_found' }, 404);
+      if (!db.hasParticipated(eventId, kkpId)) return json({ error: 'not_participated' }, 403);
+      const result = db.submitEventFeedback(
+        eventId,
+        kkpId,
+        rating as 1 | 2 | 3 | 4 | 5,
+        (comment ?? '').trim(),
+      );
+      return json({
+        success: true,
+        feedback: result.feedback,
+        updated: result.alreadySubmitted,
+      });
+    },
+  },
+
+  // ── イベントフィードバック：集計（開催者向け） ─────────────────────────
+  {
+    method: 'GET',
+    pattern: /^\/events\/([\w-]+)\/feedback\/([\w-]+)$/,
+    handle: (_req, m) => {
+      const eventId = m[1];
+      const organizerId = m[2];
+      const organizer = db.findTarget(organizerId);
+      if (!organizer || organizer.role !== 'organizer') return json({ error: 'unauthorized' }, 403);
+      const evt = db.getEvent(eventId);
+      if (!evt) return json({ error: 'event_not_found' }, 404);
+      if (evt.organizerId !== organizerId) return json({ error: 'forbidden' }, 403);
+      return json(db.getEventFeedbackSummary(eventId));
+    },
+  },
+
   // ── お知らせ一覧 ─────────────────────────────────────────────────────────
   {
     method: 'GET',

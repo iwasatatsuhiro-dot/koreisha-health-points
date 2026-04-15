@@ -11,7 +11,7 @@ import { Card } from '@/src/components/ui/Card';
 import { eventsApi } from '@/src/services/api/endpoints';
 import { useAuthStore } from '@/src/stores/authStore';
 import { colors, radii, spacing, typography } from '@/src/theme';
-import type { AppEvent, EventCategory, EventRoster, EventSelectionMode } from '@/src/types';
+import type { AppEvent, EventCategory, EventFeedbackSummary, EventRoster, EventSelectionMode } from '@/src/types';
 
 const CATEGORY_OPTIONS: { value: EventCategory; label: string }[] = [
   { value: 'health', label: '健康' },
@@ -540,6 +540,8 @@ function EventDetailModal({
             </Card>
           )}
 
+          <FeedbackSummarySection eventId={event.id} organizerId={organizerId} />
+
           {event.status === 'open' && (
             <Card>
               <AppText variant="heading">参加者管理</AppText>
@@ -606,6 +608,93 @@ function EventDetailModal({
     </Modal>
   );
 }
+
+function FeedbackSummarySection({
+  eventId,
+  organizerId,
+}: {
+  eventId: string;
+  organizerId: string;
+}) {
+  const { data, isLoading } = useQuery<EventFeedbackSummary>({
+    queryKey: ['event-feedback-summary', eventId, organizerId],
+    queryFn: () => eventsApi.getFeedbackSummary(eventId, organizerId),
+    enabled: !!eventId && !!organizerId,
+    staleTime: 30_000,
+  });
+
+  return (
+    <Card>
+      <AppText variant="heading">参加者フィードバック</AppText>
+      {isLoading && <AppText variant="body">読み込み中...</AppText>}
+      {data && data.count === 0 && (
+        <AppText variant="body" style={styles.muted}>まだフィードバックは寄せられていません。</AppText>
+      )}
+      {data && data.count > 0 && (
+        <>
+          <View style={fbStyles.summaryRow}>
+            <AppText variant="title" style={fbStyles.avgText}>
+              {data.averageRating?.toFixed(1) ?? '-'}
+            </AppText>
+            <AppText variant="caption" style={styles.muted}>
+              / 5.0 ・ 回答 {data.count}件
+            </AppText>
+          </View>
+          {(['5', '4', '3', '2', '1'] as const).map((key) => {
+            const count = data.distribution[key];
+            const pct = data.count > 0 ? Math.round((count / data.count) * 100) : 0;
+            return (
+              <View key={key} style={fbStyles.distRow}>
+                <AppText variant="caption" style={fbStyles.distLabel}>{key}★</AppText>
+                <View style={fbStyles.distTrack}>
+                  <View style={[fbStyles.distFill, { width: `${pct}%` }]} />
+                </View>
+                <AppText variant="caption" style={fbStyles.distCount}>{count}</AppText>
+              </View>
+            );
+          })}
+          {data.recentComments.length > 0 && (
+            <>
+              <AppText variant="body" style={fbStyles.commentHead}>最近のコメント</AppText>
+              {data.recentComments.map((c, i) => (
+                <View key={i} style={fbStyles.commentRow}>
+                  <AppText variant="caption" style={fbStyles.commentRating}>
+                    {'★'.repeat(c.rating)}
+                  </AppText>
+                  <AppText variant="body">{c.comment}</AppText>
+                </View>
+              ))}
+            </>
+          )}
+        </>
+      )}
+    </Card>
+  );
+}
+
+const fbStyles = StyleSheet.create({
+  summaryRow: { flexDirection: 'row', alignItems: 'baseline', gap: spacing.sm },
+  avgText: { color: colors.accent, fontWeight: '700' },
+  distRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: 2 },
+  distLabel: { width: 32, color: colors.textMuted },
+  distTrack: {
+    flex: 1,
+    height: 10,
+    backgroundColor: colors.border,
+    borderRadius: radii.pill,
+    overflow: 'hidden',
+  },
+  distFill: { height: '100%', backgroundColor: colors.accent },
+  distCount: { width: 32, textAlign: 'right', color: colors.textMuted },
+  commentHead: { fontWeight: '700', marginTop: spacing.sm },
+  commentRow: {
+    gap: 2,
+    paddingVertical: spacing.xs,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  commentRating: { color: colors.accent, fontWeight: '700' },
+});
 
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
