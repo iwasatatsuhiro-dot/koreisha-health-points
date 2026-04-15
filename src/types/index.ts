@@ -1,6 +1,6 @@
 export type KkpId = string;
 
-export type UserRole = 'user' | 'organizer' | 'secretariat';
+export type UserRole = 'user' | 'organizer';
 
 export type EventApprovalStatus = 'pending' | 'approved' | 'rejected';
 
@@ -115,12 +115,6 @@ export type AppEvent = {
   rejectionReason?: string;
   approvedAt?: string;
   approvedBy?: string;
-};
-
-export type NoticeInput = {
-  title: string;
-  body: string;
-  important: boolean;
 };
 
 export type EventApplication = {

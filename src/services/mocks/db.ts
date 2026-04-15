@@ -22,7 +22,6 @@ import type {
   InquiryCategory,
   Mission,
   Notice,
-  NoticeInput,
   PointHistory,
   PointHistoryCategory,
   PushCategory,
@@ -49,7 +48,6 @@ const targets: Record<string, TargetRecord> = {
   'KKP-000001': { kkpId: 'KKP-000001', ageBand: '70-74', ward: '中央区', status: 'active', role: 'user' },
   'KKP-000002': { kkpId: 'KKP-000002', ageBand: '80-84', ward: '豊平区', status: 'active', role: 'user' },
   'ORG-000001': { kkpId: 'ORG-000001', ageBand: '-', ward: '北区', status: 'active', role: 'organizer' },
-  'SEC-000001': { kkpId: 'SEC-000001', ageBand: '-', ward: '-', status: 'active', role: 'secretariat' },
 };
 
 const exchangeProviders = [
@@ -292,7 +290,6 @@ const notices: Notice[] = [
     important: false,
   },
 ];
-let noticeSeq = 100;
 
 // ── アンケート ────────────────────────────────────────────────────────────────
 
@@ -812,46 +809,6 @@ export const db = {
     [...events]
       .filter((e) => e.organizerId === organizerId)
       .sort((a, b) => a.startAt.localeCompare(b.startAt)),
-  listPendingEvents: () =>
-    [...events]
-      .filter((e) => e.approvalStatus === 'pending')
-      .sort((a, b) => a.startAt.localeCompare(b.startAt)),
-  approveEvent: (eventId: string, secretariatId: string): AppEvent | null => {
-    const evt = getEvent(eventId);
-    if (!evt) return null;
-    evt.approvalStatus = 'approved';
-    evt.approvedAt = new Date().toISOString();
-    evt.approvedBy = secretariatId;
-    evt.rejectionReason = undefined;
-    pushMessages.push({
-      id: `PN-${pushSeq++}`,
-      kkpId: evt.organizerId,
-      category: 'system',
-      title: 'イベントが承認されました',
-      body: `「${evt.title}」が事務局により承認されました。参加者へ公開されます。`,
-      sentAt: new Date().toISOString(),
-      data: { eventId: evt.id },
-    });
-    return evt;
-  },
-  rejectEvent: (eventId: string, secretariatId: string, reason: string): AppEvent | null => {
-    const evt = getEvent(eventId);
-    if (!evt) return null;
-    evt.approvalStatus = 'rejected';
-    evt.rejectionReason = reason;
-    evt.approvedAt = new Date().toISOString();
-    evt.approvedBy = secretariatId;
-    pushMessages.push({
-      id: `PN-${pushSeq++}`,
-      kkpId: evt.organizerId,
-      category: 'system',
-      title: 'イベントが差し戻しされました',
-      body: `「${evt.title}」が事務局により差し戻しされました。理由: ${reason}`,
-      sentAt: new Date().toISOString(),
-      data: { eventId: evt.id },
-    });
-    return evt;
-  },
   getEvent,
   addEvent: (evt: AppEvent) => events.push(evt),
   updateEvent: (id: string, patch: Partial<AppEvent>): AppEvent | null => {
@@ -1066,31 +1023,6 @@ export const db = {
   // --- お知らせ ---
   listNotices: () => [...notices].sort((a, b) => b.publishedAt.localeCompare(a.publishedAt)),
   getNotice: (id: string) => notices.find((n) => n.id === id) ?? null,
-  createNotice: (input: NoticeInput): Notice => {
-    const notice: Notice = {
-      id: `NOT-${String(noticeSeq++).padStart(3, '0')}`,
-      title: input.title,
-      body: input.body,
-      important: input.important,
-      publishedAt: new Date().toISOString(),
-    };
-    notices.push(notice);
-    return notice;
-  },
-  updateNotice: (id: string, patch: Partial<NoticeInput>): Notice | null => {
-    const n = notices.find((x) => x.id === id);
-    if (!n) return null;
-    if (patch.title !== undefined) n.title = patch.title;
-    if (patch.body !== undefined) n.body = patch.body;
-    if (patch.important !== undefined) n.important = patch.important;
-    return n;
-  },
-  deleteNotice: (id: string): boolean => {
-    const idx = notices.findIndex((x) => x.id === id);
-    if (idx < 0) return false;
-    notices.splice(idx, 1);
-    return true;
-  },
 
   // --- アンケート ---
   listSurveys: (kkpId: string) =>

@@ -12,11 +12,11 @@ import { useAuthStore } from '@/src/stores/authStore';
 import { colors, radii, spacing, typography } from '@/src/theme';
 import type { RegisterResult } from '@/src/types';
 
-const KKP_ID_PATTERN = /^(KKP|ORG|SEC)-\d{6}$/;
+const KKP_ID_PATTERN = /^(KKP|ORG)-\d{6}$/;
 
 function parseScannedPayload(raw: string): string | null {
   const s = raw.trim().toUpperCase();
-  const direct = s.match(/(KKP|ORG|SEC)-\d{6}/);
+  const direct = s.match(/(KKP|ORG)-\d{6}/);
   return direct ? direct[0] : null;
 }
 
@@ -62,12 +62,7 @@ export default function Register() {
         router.replace('/(user)/tutorial');
         return;
       }
-      const dest =
-        profile.role === 'organizer'
-          ? '/(organizer)/home'
-          : profile.role === 'secretariat'
-            ? '/(secretariat)/home'
-            : '/(user)/home';
+      const dest = profile.role === 'organizer' ? '/(organizer)/home' : '/(user)/home';
       router.replace(dest);
     },
     onError: () => {
@@ -145,7 +140,7 @@ export default function Register() {
         />
 
         <AppText variant="caption" style={{ marginTop: spacing.md }}>
-          テスト用 ID: KKP-000001 (ユーザ) / ORG-000001 (開催者) / SEC-000001 (事務局)
+          テスト用 ID: KKP-000001 (ユーザ) / ORG-000001 (開催者)
         </AppText>
         <AppText variant="caption">
           ※ 1つの KKP-ID は1台の端末でのみ利用できます。機種変更時はこの画面から再登録してください。

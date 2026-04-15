@@ -14,7 +14,6 @@ import type {
   InquiryCategory,
   Mission,
   Notice,
-  NoticeInput,
   PointBalance,
   PointHistory,
   PushMessage,
@@ -277,42 +276,6 @@ export const inquiriesApi = {
   listMine: async (kkpId: string) => {
     const res = await apiClient.get(`/users/${kkpId}/inquiries`);
     return res.data.inquiries as Inquiry[];
-  },
-};
-
-export const secretariatAdminApi = {
-  listPendingEvents: async () => {
-    const res = await apiClient.get('/secretariat/events/pending');
-    return res.data.events as AppEvent[];
-  },
-  approveEvent: async (eventId: string, secretariatId: string) => {
-    const res = await apiClient.post(`/secretariat/events/${eventId}/approve`, {
-      secretariatId,
-    });
-    return res.data as AppEvent;
-  },
-  rejectEvent: async (eventId: string, secretariatId: string, reason: string) => {
-    const res = await apiClient.post(`/secretariat/events/${eventId}/reject`, {
-      secretariatId,
-      reason,
-    });
-    return res.data as AppEvent;
-  },
-  createNotice: async (secretariatId: string, input: NoticeInput) => {
-    const res = await apiClient.post(`/secretariat/${secretariatId}/notices`, input);
-    return res.data as Notice;
-  },
-  updateNotice: async (
-    secretariatId: string,
-    id: string,
-    patch: Partial<NoticeInput>,
-  ) => {
-    const res = await apiClient.put(`/secretariat/${secretariatId}/notices/${id}`, patch);
-    return res.data as Notice;
-  },
-  deleteNotice: async (secretariatId: string, id: string) => {
-    const res = await apiClient.delete(`/secretariat/${secretariatId}/notices/${id}`);
-    return res.data as { success: boolean };
   },
 };
 
