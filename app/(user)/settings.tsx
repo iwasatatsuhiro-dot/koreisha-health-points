@@ -122,6 +122,18 @@ export default function Settings() {
         </Card>
 
         <Card>
+          <AppText variant="heading">データエクスポート</AppText>
+          <AppText variant="body" style={styles.muted}>
+            ポイント履歴・歩数・バイタル記録を CSV 形式で書き出せます。
+          </AppText>
+          <AppButton
+            label="エクスポート画面を開く"
+            variant="secondary"
+            onPress={() => router.push('/(user)/data-export')}
+          />
+        </Card>
+
+        <Card>
           <AppText variant="heading">利用規約</AppText>
           <AppButton
             label="利用規約を表示"
