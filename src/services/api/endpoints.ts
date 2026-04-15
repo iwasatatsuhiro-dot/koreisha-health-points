@@ -126,6 +126,10 @@ export const eventsApi = {
     const res = await apiClient.get('/events');
     return res.data.events as AppEvent[];
   },
+  listMyEvents: async (organizerId: string) => {
+    const res = await apiClient.get(`/organizers/${organizerId}/events`);
+    return res.data.events as AppEvent[];
+  },
   getEvent: async (id: string) => {
     const res = await apiClient.get(`/events/${id}`);
     return res.data as AppEvent;

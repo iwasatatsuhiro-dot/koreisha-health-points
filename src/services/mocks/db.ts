@@ -80,6 +80,9 @@ const events: AppEvent[] = [
     pointsAwarded: 50,
     status: 'open',
     selectionMode: 'first-come',
+    approvalStatus: 'approved',
+    approvedAt: fmt(addDays(now, -10)),
+    approvedBy: 'SEC-000001',
   },
   {
     id: 'EVT-002',
@@ -97,6 +100,9 @@ const events: AppEvent[] = [
     pointsAwarded: 80,
     status: 'open',
     selectionMode: 'first-come',
+    approvalStatus: 'approved',
+    approvedAt: fmt(addDays(now, -8)),
+    approvedBy: 'SEC-000001',
   },
   {
     id: 'EVT-003',
@@ -117,6 +123,9 @@ const events: AppEvent[] = [
     selectionMode: 'lottery',
     applicationDeadline: fmt(addDays(now, 7)),
     lotteryStatus: 'accepting',
+    approvalStatus: 'approved',
+    approvedAt: fmt(addDays(now, -6)),
+    approvedBy: 'SEC-000001',
   },
   {
     id: 'EVT-004',
@@ -134,6 +143,9 @@ const events: AppEvent[] = [
     pointsAwarded: 40,
     status: 'closed',
     selectionMode: 'first-come',
+    approvalStatus: 'approved',
+    approvedAt: fmt(addDays(now, -20)),
+    approvedBy: 'SEC-000001',
   },
 ];
 
@@ -789,7 +801,14 @@ export const db = {
     ),
 
   // --- イベント ---
-  listEvents: () => [...events].sort((a, b) => a.startAt.localeCompare(b.startAt)),
+  listEvents: () =>
+    [...events]
+      .filter((e) => e.approvalStatus === 'approved')
+      .sort((a, b) => a.startAt.localeCompare(b.startAt)),
+  listMyEvents: (organizerId: string) =>
+    [...events]
+      .filter((e) => e.organizerId === organizerId)
+      .sort((a, b) => a.startAt.localeCompare(b.startAt)),
   getEvent,
   addEvent: (evt: AppEvent) => events.push(evt),
   updateEvent: (id: string, patch: Partial<AppEvent>): AppEvent | null => {

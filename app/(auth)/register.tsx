@@ -140,7 +140,7 @@ export default function Register() {
         />
 
         <AppText variant="caption" style={{ marginTop: spacing.md }}>
-          テスト用 ID: KKP-000001 (ユーザ) / ORG-000001 (イベント開催者)
+          テスト用 ID: KKP-000001 (ユーザ) / ORG-000001 (開催者)
         </AppText>
         <AppText variant="caption">
           ※ 1つの KKP-ID は1台の端末でのみ利用できます。機種変更時はこの画面から再登録してください。

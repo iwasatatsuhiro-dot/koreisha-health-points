@@ -365,6 +365,7 @@ export const handlers: Handler[] = [
         selectionMode: body.selectionMode ?? 'first-come',
         applicationDeadline: body.applicationDeadline,
         lotteryStatus: body.selectionMode === 'lottery' ? 'accepting' : undefined,
+        approvalStatus: 'pending',
       };
       db.addEvent(evt);
       return json(evt, 201);
@@ -769,4 +770,19 @@ export const handlers: Handler[] = [
       return json(db.registerPushToken(m[1], token));
     },
   },
+
+  // ── 開催者：自分のイベント一覧（承認状況含む） ───────────────────────────
+  {
+    method: 'GET',
+    pattern: /^\/organizers\/([\w-]+)\/events$/,
+    handle: (_req, m) => {
+      const organizerId = m[1];
+      const target = db.findTarget(organizerId);
+      if (!target || target.role !== 'organizer') {
+        return json({ error: 'forbidden' }, 403);
+      }
+      return json({ events: db.listMyEvents(organizerId) });
+    },
+  },
+
 ];
