@@ -577,6 +577,13 @@ export const handlers: Handler[] = [
     handle: (_req, m) => json(db.getHealthChanges(m[1])),
   },
 
+  // ── バッジ ─────────────────────────────────────────────────────────────
+  {
+    method: 'GET',
+    pattern: /^\/users\/([\w-]+)\/badges$/,
+    handle: (_req, m) => json(db.getBadges(m[1])),
+  },
+
   // ── 抽選：応募 ───────────────────────────────────────────────────────────
   {
     method: 'POST',

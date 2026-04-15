@@ -1,6 +1,7 @@
 import { apiClient } from './client';
 import type {
   AppEvent,
+  BadgeListResult,
   EventApplication,
   EventRoster,
   EventUpdateInput,
@@ -239,6 +240,13 @@ export const healthChangesApi = {
   list: async (kkpId: string) => {
     const res = await apiClient.get(`/users/${kkpId}/health-changes`);
     return res.data as HealthChangesResult;
+  },
+};
+
+export const badgesApi = {
+  list: async (kkpId: string) => {
+    const res = await apiClient.get(`/users/${kkpId}/badges`);
+    return res.data as BadgeListResult;
   },
 };
 
