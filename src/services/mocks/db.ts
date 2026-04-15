@@ -192,6 +192,30 @@ const pointHistory: PointHistory[] = [
     note: 'アンケート「健康意識調査」回答',
     recordedAt: addDays(now, -6).toISOString(),
   },
+  {
+    id: 'PH-008',
+    kkpId: 'KKP-000001',
+    category: 'exchange',
+    delta: -100,
+    note: 'PayPayへ交換',
+    recordedAt: addDays(now, -10).toISOString(),
+  },
+  {
+    id: 'PH-009',
+    kkpId: 'KKP-000001',
+    category: 'exchange',
+    delta: -50,
+    note: '楽天ポイントへ交換',
+    recordedAt: addDays(now, -25).toISOString(),
+  },
+  {
+    id: 'PH-010',
+    kkpId: 'KKP-000002',
+    category: 'exchange',
+    delta: -200,
+    note: 'Suicaへ交換',
+    recordedAt: addDays(now, -15).toISOString(),
+  },
 ];
 
 const pointBalances: Record<string, number> = {
@@ -442,7 +466,7 @@ export const db = {
   getBalance: (kkpId: string) => {
     const seeded = pointBalances[kkpId] ?? 0;
     const dynamic = pointHistory
-      .filter((h) => h.kkpId === kkpId && !['PH-001','PH-002','PH-003','PH-004','PH-005','PH-006','PH-007'].includes(h.id))
+      .filter((h) => h.kkpId === kkpId && !['PH-001','PH-002','PH-003','PH-004','PH-005','PH-006','PH-007','PH-008','PH-009','PH-010'].includes(h.id))
       .reduce((s, h) => s + h.delta, 0);
     return seeded + dynamic;
   },
