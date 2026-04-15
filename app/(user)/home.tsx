@@ -14,6 +14,7 @@ import {
   surveysApi,
   frailtyApi,
   missionsApi,
+  healthChangesApi,
 } from '@/src/services/api/endpoints';
 import { useAuthStore } from '@/src/stores/authStore';
 import {
@@ -89,6 +90,13 @@ export default function Home() {
   const frailty = useQuery({
     queryKey: ['frailty', kkpId],
     queryFn: () => frailtyApi.assess(kkpId!),
+    enabled: !!kkpId,
+    staleTime: 60_000,
+  });
+
+  const healthChanges = useQuery({
+    queryKey: ['health-changes', kkpId],
+    queryFn: () => healthChangesApi.list(kkpId!),
     enabled: !!kkpId,
     staleTime: 60_000,
   });
@@ -206,6 +214,35 @@ export default function Home() {
             </>
           )}
         </Card>
+
+        {/* 健康状態の変化 */}
+        {healthChanges.data && healthChanges.data.changes.length > 0 && (
+          <Card style={styles.changeCard}>
+            <View style={styles.cardHeader}>
+              <AppText variant="heading">健康状態の変化</AppText>
+              <AppButton
+                label="すべて見る"
+                variant="secondary"
+                onPress={() => router.push('/(user)/health-changes')}
+                style={styles.smallBtn}
+              />
+            </View>
+            {healthChanges.data.changes.slice(0, 2).map((c) => {
+              const color =
+                c.direction === 'improved'
+                  ? colors.success
+                  : c.direction === 'worsened'
+                    ? colors.danger
+                    : colors.accent;
+              return (
+                <View key={c.id} style={[styles.changeRow, { borderLeftColor: color }]}>
+                  <AppText variant="body" style={{ fontWeight: '700' }}>{c.title}</AppText>
+                  <AppText variant="caption" style={styles.muted}>{c.body}</AppText>
+                </View>
+              );
+            })}
+          </Card>
+        )}
 
         <Card>
           <AppText variant="heading">現有ポイント</AppText>
@@ -331,4 +368,11 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.border,
   },
   adviceText: { marginTop: spacing.sm },
+  changeCard: { gap: spacing.sm },
+  changeRow: {
+    borderLeftWidth: 4,
+    paddingLeft: spacing.sm,
+    paddingVertical: spacing.xs,
+    gap: spacing.xs,
+  },
 });

@@ -20,6 +20,7 @@ import type {
   UserProfile,
   VitalInput,
   VitalReading,
+  HealthChangesResult,
 } from '@/src/types';
 
 export const targetSystemApi = {
@@ -188,6 +189,13 @@ export const frailtyApi = {
   assess: async (kkpId: string) => {
     const res = await apiClient.get(`/users/${kkpId}/frailty-risk`);
     return res.data as FrailtyRiskAssessment;
+  },
+};
+
+export const healthChangesApi = {
+  list: async (kkpId: string) => {
+    const res = await apiClient.get(`/users/${kkpId}/health-changes`);
+    return res.data as HealthChangesResult;
   },
 };
 

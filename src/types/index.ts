@@ -189,6 +189,37 @@ export type FrailtyRiskAssessment = {
   assessedAt: string;
 };
 
+export type HealthSnapshot = {
+  id: string;
+  kkpId: string;
+  capturedAt: string;
+  frailtyLevel: FrailtyRiskLevel;
+  frailtyScore: number;
+  avgWeeklySteps: number;
+  avgSystolic: number | null;
+  avgDiastolic: number | null;
+  weightKg: number | null;
+};
+
+export type HealthChangeKind = 'frailty' | 'steps' | 'blood_pressure' | 'weight';
+export type HealthChangeDirection = 'improved' | 'worsened' | 'stable';
+
+export type HealthStateChange = {
+  id: string;
+  kkpId: string;
+  kind: HealthChangeKind;
+  direction: HealthChangeDirection;
+  title: string;
+  body: string;
+  detectedAt: string;
+};
+
+export type HealthChangesResult = {
+  changes: HealthStateChange[];
+  previousSnapshotAt: string | null;
+  latestSnapshotAt: string | null;
+};
+
 export type InquiryCategory = 'app' | 'points' | 'event' | 'account' | 'other';
 
 export type Inquiry = {

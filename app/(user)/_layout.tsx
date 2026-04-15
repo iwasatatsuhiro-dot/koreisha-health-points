@@ -36,6 +36,7 @@ export default function UserLayout() {
       <Tabs.Screen name="withdraw" options={{ href: null, title: '退会' }} />
       <Tabs.Screen name="point-breakdown" options={{ href: null, title: 'ポイント内訳' }} />
       <Tabs.Screen name="exchange-history" options={{ href: null, title: '交換履歴' }} />
+      <Tabs.Screen name="health-changes" options={{ href: null, title: '健康状態の変化' }} />
     </Tabs>
   );
 }
