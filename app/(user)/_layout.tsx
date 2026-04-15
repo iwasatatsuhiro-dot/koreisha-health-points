@@ -39,6 +39,7 @@ export default function UserLayout() {
       <Tabs.Screen name="health-changes" options={{ href: null, title: '健康状態の変化' }} />
       <Tabs.Screen name="watch-over" options={{ href: null, title: '見守り設定' }} />
       <Tabs.Screen name="badges" options={{ href: null, title: 'バッジ' }} />
+      <Tabs.Screen name="data-export" options={{ href: null, title: 'データエクスポート' }} />
     </Tabs>
   );
 }
