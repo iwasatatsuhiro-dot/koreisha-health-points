@@ -17,6 +17,7 @@ export default function Settings() {
   const signOut = useAuthStore((s) => s.signOut);
   const kkpId = useAuthStore((s) => s.kkpId);
   const nickname = useAuthStore((s) => s.nickname);
+  const deviceId = useAuthStore((s) => s.deviceId);
 
   const unread = useQuery({
     queryKey: ['push', kkpId],
@@ -91,6 +92,21 @@ export default function Settings() {
             variant="secondary"
             onPress={() => router.push('/(user)/inquiry')}
           />
+        </Card>
+
+        <Card>
+          <AppText variant="heading">ご利用の端末</AppText>
+          <AppText variant="body" style={styles.muted}>
+            この端末でご利用中です（1つの KKP-ID は1台の端末でのみ利用できます）
+          </AppText>
+          {deviceId && (
+            <AppText variant="caption" style={styles.muted}>
+              端末ID: {deviceId.slice(0, 16)}…
+            </AppText>
+          )}
+          <AppText variant="caption" style={styles.muted}>
+            機種変更される場合は、新しい端末でアプリをインストールし、登録画面からこの KKP-ID を再登録してください。
+          </AppText>
         </Card>
 
         <Card>

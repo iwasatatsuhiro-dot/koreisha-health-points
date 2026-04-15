@@ -52,10 +52,23 @@ export const handlers: Handler[] = [
     pattern: /^\/secretariat\/users\/register$/,
     handle: (req) => {
       const kkpId = req.body?.kkpId as string | undefined;
+      const deviceId = req.body?.deviceId as string | undefined;
+      const forceTransfer = Boolean(req.body?.forceTransfer);
       if (!kkpId) return json({ error: 'kkpId_required' }, 400);
+      if (!deviceId) return json({ error: 'device_id_required' }, 400);
       const target = db.findTarget(kkpId);
       if (!target) return json({ error: 'unknown_kkp_id' }, 404);
       if (target.status !== 'active') return json({ error: 'ineligible' }, 403);
+
+      const existing = db.getActiveDevice(kkpId);
+      if (existing && existing.deviceId !== deviceId && !forceTransfer) {
+        return json(
+          { error: 'device_conflict', kkpId, boundAt: existing.boundAt },
+          409,
+        );
+      }
+      db.bindDevice(kkpId, deviceId);
+
       return json({
         kkpId: target.kkpId,
         role: target.role,

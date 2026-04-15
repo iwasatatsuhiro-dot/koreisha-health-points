@@ -8,7 +8,18 @@ export type AuthState = {
   nickname: string | null;
   termsAcceptedAt: string | null;
   tutorialCompletedAt: string | null;
+  deviceId: string | null;
 };
+
+export type DeviceBinding = {
+  kkpId: KkpId;
+  deviceId: string;
+  boundAt: string;
+};
+
+export type RegisterResult =
+  | { kind: 'ok'; profile: UserProfile }
+  | { kind: 'device_conflict'; kkpId: KkpId; boundAt: string };
 
 export type UserProfile = {
   kkpId: KkpId;

@@ -14,6 +14,7 @@ import type {
   PushMessage,
   PushPreferences,
   RankingEntry,
+  RegisterResult,
   StepsDaily,
   StepsWeekly,
   Survey,
@@ -30,9 +31,24 @@ export const targetSystemApi = {
 };
 
 export const secretariatApi = {
-  registerUser: async (kkpId: string) => {
-    const res = await apiClient.post('/secretariat/users/register', { kkpId });
-    return res.data as UserProfile;
+  registerUser: async (
+    kkpId: string,
+    deviceId: string,
+    options?: { forceTransfer?: boolean },
+  ): Promise<RegisterResult> => {
+    const res = await apiClient.post(
+      '/secretariat/users/register',
+      { kkpId, deviceId, forceTransfer: options?.forceTransfer ?? false },
+      { validateStatus: (s) => s === 200 || s === 409 },
+    );
+    if (res.status === 409) {
+      return {
+        kind: 'device_conflict',
+        kkpId: res.data.kkpId,
+        boundAt: res.data.boundAt,
+      };
+    }
+    return { kind: 'ok', profile: res.data as UserProfile };
   },
   getBalance: async (kkpId: string) => {
     const res = await apiClient.get(`/secretariat/users/${kkpId}/balance`);
