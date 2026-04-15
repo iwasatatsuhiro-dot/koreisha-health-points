@@ -30,6 +30,10 @@ export default function UserLayout() {
       <Tabs.Screen name="missions" options={{ href: null, title: 'ミッション' }} />
       <Tabs.Screen name="inquiry" options={{ href: null, title: 'お問い合わせ' }} />
       <Tabs.Screen name="notifications" options={{ href: null, title: '通知センター' }} />
+      <Tabs.Screen name="terms" options={{ href: null, title: '利用規約' }} />
+      <Tabs.Screen name="tutorial" options={{ href: null, title: '使い方ガイド' }} />
+      <Tabs.Screen name="nickname" options={{ href: null, title: 'ニックネーム' }} />
+      <Tabs.Screen name="withdraw" options={{ href: null, title: '退会' }} />
     </Tabs>
   );
 }

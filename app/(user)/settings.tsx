@@ -16,6 +16,7 @@ export default function Settings() {
   const { fontScale, cycleFontScale } = useAccessibilityStore();
   const signOut = useAuthStore((s) => s.signOut);
   const kkpId = useAuthStore((s) => s.kkpId);
+  const nickname = useAuthStore((s) => s.nickname);
 
   const unread = useQuery({
     queryKey: ['push', kkpId],
@@ -34,6 +35,19 @@ export default function Settings() {
     <SafeAreaView style={styles.safe} edges={['bottom']}>
       <ScrollView contentContainerStyle={styles.container}>
         <AppText variant="title">設定</AppText>
+
+        <Card>
+          <AppText variant="heading">アカウント</AppText>
+          <AppText variant="body">KKP-ID: {kkpId}</AppText>
+          <AppText variant="body" style={styles.muted}>
+            ニックネーム: {nickname ?? '未設定'}
+          </AppText>
+          <AppButton
+            label="ニックネームを変更"
+            variant="secondary"
+            onPress={() => router.push('/(user)/nickname')}
+          />
+        </Card>
 
         <Card>
           <AppText variant="heading">文字サイズ</AppText>
@@ -56,6 +70,18 @@ export default function Settings() {
         </Card>
 
         <Card>
+          <AppText variant="heading">使い方ガイド</AppText>
+          <AppText variant="body" style={styles.muted}>
+            アプリの主な使い方をスライドで確認できます。
+          </AppText>
+          <AppButton
+            label="使い方ガイドを開く"
+            variant="secondary"
+            onPress={() => router.push('/(user)/tutorial?replay=1')}
+          />
+        </Card>
+
+        <Card>
           <AppText variant="heading">お問い合わせ</AppText>
           <AppText variant="body" style={styles.muted}>
             アプリに関するご質問・ご要望は事務局へお問い合わせください。
@@ -67,8 +93,22 @@ export default function Settings() {
           />
         </Card>
 
-        <View style={{ marginTop: spacing.xl }}>
+        <Card>
+          <AppText variant="heading">利用規約</AppText>
+          <AppButton
+            label="利用規約を表示"
+            variant="secondary"
+            onPress={() => router.push('/(user)/terms')}
+          />
+        </Card>
+
+        <View style={{ marginTop: spacing.xl, gap: spacing.md }}>
           <AppButton label="ログアウト" variant="secondary" onPress={handleSignOut} />
+          <AppButton
+            label="退会する"
+            variant="ghost"
+            onPress={() => router.push('/(user)/withdraw')}
+          />
         </View>
       </ScrollView>
     </SafeAreaView>

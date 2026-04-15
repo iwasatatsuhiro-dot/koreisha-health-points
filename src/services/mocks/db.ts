@@ -415,10 +415,28 @@ let vitalsSeq = 1;
 
 // ── DB export ────────────────────────────────────────────────────────────────
 
+const nicknames: Record<string, string> = {};
+
 export const db = {
   // --- ターゲット ---
   findTarget: (kkpId: string) => targets[kkpId] ?? null,
   listExchangeProviders: () => exchangeProviders,
+
+  // --- アカウント ---
+  getNickname: (kkpId: string) => nicknames[kkpId] ?? null,
+  setNickname: (kkpId: string, nickname: string) => {
+    nicknames[kkpId] = nickname;
+    return { kkpId, nickname };
+  },
+  withdraw: (kkpId: string) => {
+    const target = targets[kkpId];
+    if (!target) return false;
+    target.status = 'withdrawn';
+    delete nicknames[kkpId];
+    delete pushPreferences[kkpId];
+    delete pushTokens[kkpId];
+    return true;
+  },
 
   // --- ポイント ---
   getBalance: (kkpId: string) => {

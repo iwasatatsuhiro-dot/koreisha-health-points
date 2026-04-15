@@ -14,10 +14,16 @@ export default function Register() {
   const [kkpId, setKkpId] = useState('');
   const setSession = useAuthStore((s) => s.setSession);
 
+  const tutorialCompletedAt = useAuthStore((s) => s.tutorialCompletedAt);
+
   const mutation = useMutation({
     mutationFn: (id: string) => secretariatApi.registerUser(id),
     onSuccess: (profile) => {
-      setSession({ kkpId: profile.kkpId, role: profile.role });
+      setSession({ kkpId: profile.kkpId, role: profile.role, nickname: profile.nickname });
+      if (profile.role === 'user' && !tutorialCompletedAt) {
+        router.replace('/(user)/tutorial');
+        return;
+      }
       const dest = profile.role === 'organizer' ? '/(organizer)/home' : '/(user)/home';
       router.replace(dest);
     },

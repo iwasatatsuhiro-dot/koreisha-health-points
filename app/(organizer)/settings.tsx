@@ -36,8 +36,22 @@ export default function OrganizerSettings() {
           </AppText>
         </Card>
 
-        <View style={{ marginTop: spacing.md }}>
+        <Card>
+          <AppText variant="heading">利用規約</AppText>
+          <AppButton
+            label="利用規約を表示"
+            variant="secondary"
+            onPress={() => router.push('/(organizer)/terms')}
+          />
+        </Card>
+
+        <View style={{ marginTop: spacing.md, gap: spacing.md }}>
           <AppButton label="ログアウト" variant="secondary" onPress={handleSignOut} />
+          <AppButton
+            label="退会する"
+            variant="ghost"
+            onPress={() => router.push('/(organizer)/withdraw')}
+          />
         </View>
       </ScrollView>
     </SafeAreaView>

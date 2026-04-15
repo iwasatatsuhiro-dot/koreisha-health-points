@@ -42,6 +42,14 @@ export const secretariatApi = {
     const res = await apiClient.get(`/secretariat/users/${kkpId}/history`);
     return res.data.history as PointHistory[];
   },
+  updateNickname: async (kkpId: string, nickname: string) => {
+    const res = await apiClient.put(`/secretariat/users/${kkpId}/nickname`, { nickname });
+    return res.data as { kkpId: string; nickname: string };
+  },
+  withdraw: async (kkpId: string) => {
+    const res = await apiClient.post(`/secretariat/users/${kkpId}/withdraw`, {});
+    return res.data as { success: boolean; kkpId: string };
+  },
 };
 
 export const healthApi = {
