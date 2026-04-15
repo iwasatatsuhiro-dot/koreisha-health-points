@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { ScrollView, StyleSheet, View, TouchableOpacity, Alert, Modal, TextInput } from 'react-native';
+import { ScrollView, StyleSheet, View, TouchableOpacity, Alert, Modal, TextInput, Share } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { CameraView, useCameraPermissions } from 'expo-camera';
@@ -11,7 +11,7 @@ import { Card } from '@/src/components/ui/Card';
 import { eventsApi } from '@/src/services/api/endpoints';
 import { useAuthStore } from '@/src/stores/authStore';
 import { colors, radii, spacing, typography } from '@/src/theme';
-import type { AppEvent, EventCategory, EventSelectionMode } from '@/src/types';
+import type { AppEvent, EventCategory, EventRoster, EventSelectionMode } from '@/src/types';
 
 const CATEGORY_OPTIONS: { value: EventCategory; label: string }[] = [
   { value: 'health', label: '健康' },
@@ -198,6 +198,194 @@ function RegisterModal({
   );
 }
 
+// ── イベント編集フォーム ─────────────────────────────────────────────────────
+
+function EditModal({
+  event,
+  organizerId,
+  onClose,
+}: {
+  event: AppEvent;
+  organizerId: string;
+  onClose: () => void;
+}) {
+  const qc = useQueryClient();
+  const [title, setTitle] = useState(event.title);
+  const [location, setLocation] = useState(event.location);
+  const [description, setDescription] = useState(event.description);
+  const [points, setPoints] = useState(String(event.pointsAwarded));
+  const [maxParticipants, setMaxParticipants] = useState(
+    event.maxParticipants ? String(event.maxParticipants) : '',
+  );
+
+  const mutation = useMutation({
+    mutationFn: () => {
+      const p = parseInt(points, 10);
+      const cap = maxParticipants ? parseInt(maxParticipants, 10) : undefined;
+      return eventsApi.updateEvent(event.id, organizerId, {
+        title: title.trim(),
+        location: location.trim(),
+        description,
+        pointsAwarded: Number.isFinite(p) ? p : undefined,
+        maxParticipants: cap && Number.isFinite(cap) ? cap : undefined,
+      });
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['events'] });
+      qc.invalidateQueries({ queryKey: ['event', event.id] });
+      Alert.alert('更新完了', 'イベント情報を更新しました。');
+      onClose();
+    },
+    onError: () => Alert.alert('エラー', 'イベントの更新に失敗しました。'),
+  });
+
+  return (
+    <Modal animationType="slide" onRequestClose={onClose}>
+      <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} edges={['top', 'bottom']}>
+        <ScrollView contentContainerStyle={styles.formContainer}>
+          <AppText variant="title">イベントを編集</AppText>
+          <AppText variant="caption" style={styles.muted}>
+            日時・場所座標・募集方式は変更できません。変更が必要な場合は中止後に再登録してください。
+          </AppText>
+
+          <View style={styles.field}>
+            <AppText variant="heading">イベント名</AppText>
+            <TextInput style={styles.input} value={title} onChangeText={setTitle} placeholderTextColor={colors.textMuted} />
+          </View>
+
+          <View style={styles.field}>
+            <AppText variant="heading">場所</AppText>
+            <TextInput style={styles.input} value={location} onChangeText={setLocation} placeholderTextColor={colors.textMuted} />
+          </View>
+
+          <View style={styles.field}>
+            <AppText variant="heading">説明</AppText>
+            <TextInput style={[styles.input, styles.multiline]} value={description} onChangeText={setDescription} multiline numberOfLines={4} placeholderTextColor={colors.textMuted} />
+          </View>
+
+          <View style={styles.field}>
+            <AppText variant="heading">付与ポイント</AppText>
+            <TextInput style={styles.input} value={points} onChangeText={setPoints} keyboardType="number-pad" placeholderTextColor={colors.textMuted} />
+          </View>
+
+          <View style={styles.field}>
+            <AppText variant="heading">定員</AppText>
+            <TextInput style={styles.input} value={maxParticipants} onChangeText={setMaxParticipants} keyboardType="number-pad" placeholder="上限なしの場合は空欄" placeholderTextColor={colors.textMuted} />
+          </View>
+
+          <AppButton label={mutation.isPending ? '更新中...' : '更新する'} onPress={() => mutation.mutate()} disabled={mutation.isPending} />
+          <AppButton label="キャンセル" variant="secondary" onPress={onClose} />
+        </ScrollView>
+      </SafeAreaView>
+    </Modal>
+  );
+}
+
+// ── 参加者名簿セクション ─────────────────────────────────────────────────────
+
+const STATUS_LABEL: Record<'none' | 'pending' | 'won' | 'lost', string> = {
+  none: '—',
+  pending: '応募中',
+  won: '当選',
+  lost: '落選',
+};
+
+function RosterSection({ event }: { event: AppEvent }) {
+  const roster = useQuery({
+    queryKey: ['roster', event.id],
+    queryFn: () => eventsApi.getRoster(event.id),
+    staleTime: 5_000,
+  });
+
+  const handleShare = async (data: EventRoster) => {
+    const header = `イベント名簿: ${event.title}\n開催日: ${event.startAt.slice(0, 10)}\n`;
+    const lines = [
+      'KKP-ID,ニックネーム,応募状態,応募日,参加,参加日時,付与pt',
+      ...data.entries.map((e) =>
+        [
+          e.kkpId,
+          e.nickname ?? '',
+          STATUS_LABEL[e.applicationStatus],
+          e.appliedAt?.slice(0, 10) ?? '',
+          e.checkedIn ? '済' : '',
+          e.checkedInAt?.slice(0, 16).replace('T', ' ') ?? '',
+          e.pointsAwarded ?? '',
+        ].join(','),
+      ),
+    ];
+    try {
+      await Share.share({ message: header + '\n' + lines.join('\n') });
+    } catch {
+      Alert.alert('共有に失敗しました');
+    }
+  };
+
+  if (roster.isLoading) {
+    return (
+      <Card>
+        <AppText variant="heading">参加者名簿</AppText>
+        <AppText variant="body">読み込み中...</AppText>
+      </Card>
+    );
+  }
+  if (!roster.data) return null;
+
+  const attendancePct =
+    roster.data.winnerCount > 0
+      ? Math.round((roster.data.checkedInCount / roster.data.winnerCount) * 100)
+      : event.maxParticipants
+        ? Math.round((roster.data.checkedInCount / event.maxParticipants) * 100)
+        : null;
+
+  return (
+    <Card>
+      <AppText variant="heading">参加者名簿（{roster.data.entries.length}名）</AppText>
+      <View style={styles.rosterStats}>
+        {event.selectionMode === 'lottery' && (
+          <AppText variant="body" style={styles.muted}>
+            応募 {roster.data.appliedCount} / 当選 {roster.data.winnerCount}
+          </AppText>
+        )}
+        <AppText variant="body" style={styles.muted}>
+          チェックイン済 {roster.data.checkedInCount}名
+          {attendancePct != null ? `（出席率 ${attendancePct}%）` : ''}
+        </AppText>
+      </View>
+
+      {roster.data.entries.length === 0 ? (
+        <AppText variant="body" style={styles.muted}>
+          まだ参加者はいません
+        </AppText>
+      ) : (
+        <View style={styles.rosterList}>
+          {roster.data.entries.map((e) => (
+            <View key={e.kkpId} style={styles.rosterRow}>
+              <View style={{ flex: 1 }}>
+                <AppText variant="body">{e.nickname ?? e.kkpId}</AppText>
+                <AppText variant="caption" style={styles.muted}>
+                  {e.kkpId}
+                  {event.selectionMode === 'lottery' && `・${STATUS_LABEL[e.applicationStatus]}`}
+                </AppText>
+              </View>
+              {e.checkedIn ? (
+                <View style={[styles.statusBadge, styles.statusCheckedIn]}>
+                  <AppText variant="caption" style={styles.statusBadgeText}>済</AppText>
+                </View>
+              ) : (
+                <View style={[styles.statusBadge, styles.statusPending]}>
+                  <AppText variant="caption" style={styles.statusBadgeText}>未</AppText>
+                </View>
+              )}
+            </View>
+          ))}
+        </View>
+      )}
+
+      <AppButton label="名簿を共有（CSV）" variant="secondary" onPress={() => handleShare(roster.data!)} />
+    </Card>
+  );
+}
+
 // ── イベント詳細（開催者用） ───────────────────────────────────────────────────
 
 function EventDetailModal({
@@ -213,7 +401,31 @@ function EventDetailModal({
   const [permission, requestPermission] = useCameraPermissions();
   const [scannerOpen, setScannerOpen] = useState(false);
   const [venueQrOpen, setVenueQrOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
   const scanned = useRef(false);
+
+  const cancelMutation = useMutation({
+    mutationFn: () => eventsApi.cancelEvent(event.id, organizerId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['events'] });
+      qc.invalidateQueries({ queryKey: ['event', event.id] });
+      Alert.alert('中止しました', 'イベントを中止しました。参加者・応募者に通知されます。', [
+        { text: 'OK', onPress: onClose },
+      ]);
+    },
+    onError: () => Alert.alert('エラー', 'イベントの中止に失敗しました。'),
+  });
+
+  const handleCancel = () => {
+    Alert.alert(
+      'イベントを中止しますか？',
+      '中止すると参加者・応募者に通知され、この操作は取り消せません。',
+      [
+        { text: 'やめる', style: 'cancel' },
+        { text: '中止する', style: 'destructive', onPress: () => cancelMutation.mutate() },
+      ],
+    );
+  };
 
   const checkInMutation = useMutation({
     mutationFn: (kkpId: string) => eventsApi.checkIn(event.id, organizerId, kkpId),
@@ -286,7 +498,28 @@ function EventDetailModal({
             <InfoRow label="場所" value={event.location} />
             <InfoRow label="参加者" value={`${event.participantCount}名`} />
             <InfoRow label="付与ポイント" value={`${event.pointsAwarded}pt`} />
+            {event.status === 'cancelled' && (
+              <InfoRow label="状態" value="中止済み" />
+            )}
           </Card>
+
+          {event.status === 'open' && (
+            <Card>
+              <AppText variant="heading">イベント管理</AppText>
+              <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+                <AppButton label="編集" variant="secondary" onPress={() => setEditOpen(true)} style={{ flex: 1 }} />
+                <AppButton
+                  label={cancelMutation.isPending ? '処理中...' : '中止する'}
+                  variant="ghost"
+                  onPress={handleCancel}
+                  disabled={cancelMutation.isPending}
+                  style={{ flex: 1 }}
+                />
+              </View>
+            </Card>
+          )}
+
+          <RosterSection event={event} />
 
           {event.selectionMode === 'lottery' && event.status === 'open' && (
             <Card>
@@ -345,6 +578,11 @@ function EventDetailModal({
           </View>
         </View>
       </Modal>
+
+      {/* 編集モーダル */}
+      {editOpen && (
+        <EditModal event={event} organizerId={organizerId} onClose={() => setEditOpen(false)} />
+      )}
 
       {/* ユーザQRスキャナー */}
       <Modal visible={scannerOpen} animationType="slide" onRequestClose={() => setScannerOpen(false)}>
@@ -543,4 +781,23 @@ const styles = StyleSheet.create({
   },
   scannerHint: { color: '#ccc', textAlign: 'center' },
   wonText: { color: colors.success, fontWeight: '700' },
+  rosterStats: { gap: spacing.xs },
+  rosterList: { gap: spacing.xs },
+  rosterRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: spacing.xs,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  statusBadge: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+    borderRadius: radii.pill,
+    minWidth: 44,
+    alignItems: 'center',
+  },
+  statusCheckedIn: { backgroundColor: colors.success },
+  statusPending: { backgroundColor: colors.textMuted },
+  statusBadgeText: { color: '#FFFFFF', fontWeight: '700' },
 });

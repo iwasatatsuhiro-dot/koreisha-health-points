@@ -2,6 +2,8 @@ import { apiClient } from './client';
 import type {
   AppEvent,
   EventApplication,
+  EventRoster,
+  EventUpdateInput,
   ExchangeProvider,
   FrailtyRiskAssessment,
   HealthVideo,
@@ -128,6 +130,18 @@ export const eventsApi = {
   registerEvent: async (data: Partial<AppEvent> & { organizerId: string }) => {
     const res = await apiClient.post('/events', data);
     return res.data as AppEvent;
+  },
+  updateEvent: async (eventId: string, organizerId: string, patch: EventUpdateInput) => {
+    const res = await apiClient.put(`/events/${eventId}`, { organizerId, ...patch });
+    return res.data as AppEvent;
+  },
+  cancelEvent: async (eventId: string, organizerId: string) => {
+    const res = await apiClient.post(`/events/${eventId}/cancel`, { organizerId });
+    return res.data as AppEvent;
+  },
+  getRoster: async (eventId: string) => {
+    const res = await apiClient.get(`/events/${eventId}/roster`);
+    return res.data as EventRoster;
   },
   attend: async (eventId: string, kkpId: string, location?: { latitude: number; longitude: number }) => {
     const payload: Record<string, unknown> = { kkpId };

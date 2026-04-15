@@ -125,6 +125,33 @@ export type EventParticipation = {
   pointsAwarded: number;
 };
 
+export type EventRosterEntry = {
+  kkpId: string;
+  nickname: string | null;
+  applicationStatus: 'none' | 'pending' | 'won' | 'lost';
+  appliedAt: string | null;
+  checkedIn: boolean;
+  checkedInAt: string | null;
+  pointsAwarded: number | null;
+};
+
+export type EventRoster = {
+  eventId: string;
+  capacity: number | null;
+  appliedCount: number;
+  winnerCount: number;
+  checkedInCount: number;
+  entries: EventRosterEntry[];
+};
+
+export type EventUpdateInput = {
+  title?: string;
+  description?: string;
+  location?: string;
+  pointsAwarded?: number;
+  maxParticipants?: number;
+};
+
 export type PointHistoryCategory = 'walk' | 'event' | 'video' | 'survey' | 'manual' | 'exchange';
 
 export type PointHistory = {
