@@ -83,6 +83,18 @@ export default function Settings() {
         </Card>
 
         <Card>
+          <AppText variant="heading">見守り設定</AppText>
+          <AppText variant="body" style={styles.muted}>
+            一定期間アプリの利用がない場合に、ご家族等にご連絡する設定です。
+          </AppText>
+          <AppButton
+            label="見守り設定を開く"
+            variant="secondary"
+            onPress={() => router.push('/(user)/watch-over')}
+          />
+        </Card>
+
+        <Card>
           <AppText variant="heading">お問い合わせ</AppText>
           <AppText variant="body" style={styles.muted}>
             アプリに関するご質問・ご要望は事務局へお問い合わせください。

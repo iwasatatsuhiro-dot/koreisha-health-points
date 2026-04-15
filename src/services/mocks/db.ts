@@ -1,5 +1,7 @@
+import { currentStepsGoal, isWinterMonth, WINTER_VIDEO_BONUS } from '@/src/utils/season';
 import type {
   AppEvent,
+  EmergencyContact,
   EventApplication,
   EventParticipation,
   FrailtyRiskAssessment,
@@ -23,6 +25,7 @@ import type {
   UserRole,
   VitalReading,
   VitalType,
+  WatchOverConfig,
 } from '@/src/types';
 
 type TargetRecord = {
@@ -406,7 +409,7 @@ const pushTokens: Record<string, string> = {};
 
 // ── 歩数 ─────────────────────────────────────────────────────────────────────
 
-const DEFAULT_STEPS_GOAL = 6000;
+const DEFAULT_STEPS_GOAL = currentStepsGoal();
 
 function hash(s: string): number {
   let h = 0;
@@ -594,6 +597,24 @@ function computeHealthChanges(kkpId: string): HealthChangesResult {
   };
 }
 
+// ── 見守り設定 ─────────────────────────────────────────────────────────────
+
+const defaultWatchOver = (): WatchOverConfig => ({
+  enabled: false,
+  emergencyContact: null,
+  inactivityAlertDays: 3,
+  lastActiveAt: null,
+});
+
+const watchOverByUser: Record<string, WatchOverConfig> = {
+  'KKP-000001': {
+    enabled: true,
+    emergencyContact: { name: '山田 花子', relation: '長女', phone: '090-1234-5678' },
+    inactivityAlertDays: 3,
+    lastActiveAt: new Date().toISOString(),
+  },
+};
+
 // ── DB export ────────────────────────────────────────────────────────────────
 
 const nicknames: Record<string, string> = {};
@@ -620,6 +641,7 @@ export const db = {
     delete pushPreferences[kkpId];
     delete pushTokens[kkpId];
     delete activeDevices[kkpId];
+    delete watchOverByUser[kkpId];
     return true;
   },
 
@@ -633,6 +655,22 @@ export const db = {
   },
   unbindDevice: (kkpId: string) => {
     delete activeDevices[kkpId];
+  },
+
+  // --- 見守り ---
+  getWatchOver: (kkpId: string): WatchOverConfig =>
+    watchOverByUser[kkpId] ?? defaultWatchOver(),
+  setWatchOver: (kkpId: string, patch: Partial<WatchOverConfig>): WatchOverConfig => {
+    const current = watchOverByUser[kkpId] ?? defaultWatchOver();
+    const next: WatchOverConfig = { ...current, ...patch };
+    watchOverByUser[kkpId] = next;
+    return next;
+  },
+  recordActivity: (kkpId: string): WatchOverConfig => {
+    const current = watchOverByUser[kkpId] ?? defaultWatchOver();
+    const next: WatchOverConfig = { ...current, lastActiveAt: new Date().toISOString() };
+    watchOverByUser[kkpId] = next;
+    return next;
   },
 
   // --- ポイント ---
@@ -812,7 +850,8 @@ export const db = {
       return { alreadyWatchedToday: true, pointsAwarded: 0 };
     }
     watchedVideos[kkpId].set(videoId, today);
-    return { alreadyWatchedToday: false, pointsAwarded: video.pointsAwarded };
+    const multiplier = isWinterMonth() ? WINTER_VIDEO_BONUS : 1;
+    return { alreadyWatchedToday: false, pointsAwarded: video.pointsAwarded * multiplier };
   },
 
   // --- ミッション ---

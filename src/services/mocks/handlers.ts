@@ -107,6 +107,33 @@ export const handlers: Handler[] = [
     },
   },
 
+  // ── 事務局システム：見守り設定 ───────────────────────────────────────────
+  {
+    method: 'GET',
+    pattern: /^\/secretariat\/users\/([\w-]+)\/watch-over$/,
+    handle: (_req, m) => json(db.getWatchOver(m[1])),
+  },
+  {
+    method: 'PUT',
+    pattern: /^\/secretariat\/users\/([\w-]+)\/watch-over$/,
+    handle: (req, m) => {
+      const body = (req.body ?? {}) as Record<string, unknown>;
+      const patch: Record<string, unknown> = {};
+      if (typeof body.enabled === 'boolean') patch.enabled = body.enabled;
+      if ('emergencyContact' in body) patch.emergencyContact = body.emergencyContact;
+      if (typeof body.inactivityAlertDays === 'number' &&
+          [1, 3, 7, 14].includes(body.inactivityAlertDays)) {
+        patch.inactivityAlertDays = body.inactivityAlertDays;
+      }
+      return json(db.setWatchOver(m[1], patch));
+    },
+  },
+  {
+    method: 'POST',
+    pattern: /^\/secretariat\/users\/([\w-]+)\/watch-over\/ping$/,
+    handle: (_req, m) => json(db.recordActivity(m[1])),
+  },
+
   // ── 事務局システム：ポイント残高 ─────────────────────────────────────────
   {
     method: 'GET',
