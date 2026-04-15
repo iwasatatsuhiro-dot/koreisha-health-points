@@ -1,13 +1,19 @@
 import type {
   AppEvent,
+  EventApplication,
   EventParticipation,
   FrailtyRiskAssessment,
   FrailtyRiskLevel,
   HealthVideo,
+  Inquiry,
+  InquiryCategory,
   Mission,
   Notice,
   PointHistory,
   PointHistoryCategory,
+  PushCategory,
+  PushMessage,
+  PushPreferences,
   RankingEntry,
   StepsDaily,
   Survey,
@@ -48,6 +54,8 @@ const events: AppEvent[] = [
     title: '健康ウォーキング教室',
     category: 'health',
     location: '中央区円山公園',
+    latitude: 43.0544,
+    longitude: 141.3179,
     startAt: fmt(addDays(now, 3)),
     endAt: fmt(addDays(now, 3)),
     description: '円山公園を歩きながら健康増進！ 参加無料。歩きやすい靴でお越しください。',
@@ -57,12 +65,15 @@ const events: AppEvent[] = [
     participantCount: 12,
     pointsAwarded: 50,
     status: 'open',
+    selectionMode: 'first-come',
   },
   {
     id: 'EVT-002',
     title: '地域清掃ボランティア',
     category: 'volunteer',
     location: '豊平区美園公園',
+    latitude: 43.0371,
+    longitude: 141.3842,
     startAt: fmt(addDays(now, 7)),
     endAt: fmt(addDays(now, 7)),
     description: '地域の公園を皆で清掃します。軍手・ゴミ袋は主催者が用意します。',
@@ -71,27 +82,35 @@ const events: AppEvent[] = [
     participantCount: 5,
     pointsAwarded: 80,
     status: 'open',
+    selectionMode: 'first-come',
   },
   {
     id: 'EVT-003',
-    title: '健康講座「フレイル予防」',
+    title: '健康講座「フレイル予防」【抽選】',
     category: 'health',
     location: '中央区民センター',
+    latitude: 43.0621,
+    longitude: 141.3544,
     startAt: fmt(addDays(now, 14)),
     endAt: fmt(addDays(now, 14)),
-    description: 'フレイル（虚弱）を予防するための食事・運動・社会参加についての講座です。',
+    description: 'フレイル（虚弱）を予防するための食事・運動・社会参加についての講座です。定員制のため抽選となります。',
     organizerId: 'ORG-000001',
     organizerName: '北区健康推進協会',
-    maxParticipants: 50,
-    participantCount: 28,
+    maxParticipants: 20,
+    participantCount: 0,
     pointsAwarded: 60,
     status: 'open',
+    selectionMode: 'lottery',
+    applicationDeadline: fmt(addDays(now, 7)),
+    lotteryStatus: 'accepting',
   },
   {
     id: 'EVT-004',
     title: '介護予防体操教室',
     category: 'recreation',
     location: '北区コミュニティセンター',
+    latitude: 43.0908,
+    longitude: 141.3386,
     startAt: fmt(addDays(now, -5)),
     endAt: fmt(addDays(now, -5)),
     description: '過去に開催した体操教室です（参加終了）。',
@@ -100,8 +119,11 @@ const events: AppEvent[] = [
     participantCount: 20,
     pointsAwarded: 40,
     status: 'closed',
+    selectionMode: 'first-come',
   },
 ];
+
+const applications: EventApplication[] = [];
 
 const participations: EventParticipation[] = [];
 
@@ -314,6 +336,47 @@ const healthVideos: HealthVideo[] = [
 // kkpId -> Map(videoId, lastWatchedDate 'YYYY-MM-DD')
 const watchedVideos: Record<string, Map<string, string>> = {};
 
+// ── 問い合わせ ───────────────────────────────────────────────────────────────
+
+const inquiries: Inquiry[] = [];
+let inquirySeq = 1;
+
+// ── プッシュ通知 ─────────────────────────────────────────────────────────────
+
+const pushMessages: PushMessage[] = [
+  {
+    id: 'PN-001',
+    kkpId: 'KKP-000001',
+    category: 'notice',
+    title: '【お知らせ】春のキャンペーン開催中',
+    body: '4月から5月の期間中、歩数達成ポイントが2倍になります。',
+    sentAt: addDays(now, -2).toISOString(),
+  },
+  {
+    id: 'PN-002',
+    kkpId: 'KKP-000001',
+    category: 'event_reminder',
+    title: 'イベント開催のお知らせ',
+    body: '3日後に「健康ウォーキング教室」が開催されます。',
+    sentAt: addDays(now, -1).toISOString(),
+  },
+];
+let pushSeq = 100;
+
+const defaultPushPrefs = (): PushPreferences => ({
+  enabled: true,
+  categories: {
+    event_reminder: true,
+    notice: true,
+    lottery_result: true,
+    achievement: true,
+    system: true,
+  },
+});
+
+const pushPreferences: Record<string, PushPreferences> = {};
+const pushTokens: Record<string, string> = {};
+
 // ── 歩数 ─────────────────────────────────────────────────────────────────────
 
 const DEFAULT_STEPS_GOAL = 6000;
@@ -399,6 +462,54 @@ export const db = {
     participations.push(p);
     const evt = getEvent(p.eventId);
     if (evt) evt.participantCount += 1;
+  },
+
+  // --- 抽選イベント ---
+  listApplications: (kkpId: string) => applications.filter((a) => a.kkpId === kkpId),
+  getApplication: (eventId: string, kkpId: string) =>
+    applications.find((a) => a.eventId === eventId && a.kkpId === kkpId) ?? null,
+  getEventApplications: (eventId: string) => applications.filter((a) => a.eventId === eventId),
+  addApplication: (eventId: string, kkpId: string): { already: boolean; application: EventApplication | null } => {
+    const existing = applications.find((a) => a.eventId === eventId && a.kkpId === kkpId);
+    if (existing) return { already: true, application: existing };
+    const app: EventApplication = {
+      eventId,
+      kkpId,
+      appliedAt: new Date().toISOString(),
+      result: 'pending',
+    };
+    applications.push(app);
+    return { already: false, application: app };
+  },
+  drawLottery: (eventId: string): { drawn: number; won: number } => {
+    const evt = getEvent(eventId);
+    if (!evt || evt.selectionMode !== 'lottery') return { drawn: 0, won: 0 };
+    const apps = applications.filter((a) => a.eventId === eventId && a.result === 'pending');
+    const capacity = evt.maxParticipants ?? apps.length;
+    const shuffled = [...apps].sort(() => Math.random() - 0.5);
+    const winners = new Set(shuffled.slice(0, capacity).map((a) => a.kkpId));
+    apps.forEach((a) => {
+      a.result = winners.has(a.kkpId) ? 'won' : 'lost';
+    });
+    evt.lotteryStatus = 'drawn';
+    evt.drawnAt = new Date().toISOString();
+    evt.participantCount = winners.size;
+    // 当選者・落選者にプッシュ通知
+    apps.forEach((a) => {
+      const won = winners.has(a.kkpId);
+      pushMessages.push({
+        id: `PN-${pushSeq++}`,
+        kkpId: a.kkpId,
+        category: 'lottery_result',
+        title: won ? '【当選】抽選結果のお知らせ' : '【落選】抽選結果のお知らせ',
+        body: won
+          ? `「${evt.title}」に当選しました。当日お待ちしています。`
+          : `「${evt.title}」は残念ながら落選となりました。`,
+        sentAt: new Date().toISOString(),
+        data: { eventId: evt.id },
+      });
+    });
+    return { drawn: apps.length, won: winners.size };
   },
 
   // --- 歩数 ---
@@ -645,5 +756,66 @@ export const db = {
       advice,
       assessedAt: new Date().toISOString(),
     };
+  },
+
+  // --- 問い合わせ ---
+  listInquiries: (kkpId: string) =>
+    [...inquiries.filter((i) => i.kkpId === kkpId)].sort(
+      (a, b) => b.submittedAt.localeCompare(a.submittedAt),
+    ),
+  addInquiry: (input: { kkpId: string; category: InquiryCategory; subject: string; body: string }): Inquiry => {
+    const inquiry: Inquiry = {
+      id: `INQ-${String(inquirySeq++).padStart(4, '0')}`,
+      kkpId: input.kkpId,
+      category: input.category,
+      subject: input.subject,
+      body: input.body,
+      submittedAt: new Date().toISOString(),
+      status: 'open',
+    };
+    inquiries.push(inquiry);
+    return inquiry;
+  },
+
+  // --- プッシュ通知 ---
+  listPushMessages: (kkpId: string) =>
+    [...pushMessages.filter((m) => m.kkpId === kkpId)].sort(
+      (a, b) => b.sentAt.localeCompare(a.sentAt),
+    ),
+  unreadPushCount: (kkpId: string) =>
+    pushMessages.filter((m) => m.kkpId === kkpId && !m.readAt).length,
+  markPushRead: (kkpId: string, id?: string) => {
+    const now = new Date().toISOString();
+    pushMessages.forEach((m) => {
+      if (m.kkpId !== kkpId) return;
+      if (id && m.id !== id) return;
+      if (!m.readAt) m.readAt = now;
+    });
+  },
+  getPushPreferences: (kkpId: string): PushPreferences => {
+    if (!pushPreferences[kkpId]) pushPreferences[kkpId] = defaultPushPrefs();
+    return pushPreferences[kkpId];
+  },
+  updatePushPreferences: (kkpId: string, patch: Partial<PushPreferences>): PushPreferences => {
+    const current = pushPreferences[kkpId] ?? defaultPushPrefs();
+    const merged: PushPreferences = {
+      enabled: patch.enabled ?? current.enabled,
+      categories: { ...current.categories, ...(patch.categories ?? {}) },
+    };
+    pushPreferences[kkpId] = merged;
+    return merged;
+  },
+  registerPushToken: (kkpId: string, token: string) => {
+    pushTokens[kkpId] = token;
+    return { kkpId, token };
+  },
+  sendPush: (msg: Omit<PushMessage, 'id' | 'sentAt'>): PushMessage => {
+    const saved: PushMessage = {
+      ...msg,
+      id: `PN-${pushSeq++}`,
+      sentAt: new Date().toISOString(),
+    };
+    pushMessages.push(saved);
+    return saved;
   },
 };

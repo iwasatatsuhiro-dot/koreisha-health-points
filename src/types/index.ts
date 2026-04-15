@@ -60,11 +60,17 @@ export type VitalInput =
 
 export type EventCategory = 'recreation' | 'volunteer' | 'health' | 'other';
 
+export type EventSelectionMode = 'first-come' | 'lottery';
+
+export type EventLotteryStatus = 'accepting' | 'drawn' | 'closed';
+
 export type AppEvent = {
   id: string;
   title: string;
   category: EventCategory;
   location: string;
+  latitude?: number;
+  longitude?: number;
   startAt: string;
   endAt: string;
   description: string;
@@ -74,6 +80,17 @@ export type AppEvent = {
   participantCount: number;
   pointsAwarded: number;
   status: 'open' | 'closed' | 'cancelled';
+  selectionMode: EventSelectionMode;
+  applicationDeadline?: string;
+  lotteryStatus?: EventLotteryStatus;
+  drawnAt?: string;
+};
+
+export type EventApplication = {
+  eventId: string;
+  kkpId: string;
+  appliedAt: string;
+  result: 'pending' | 'won' | 'lost';
 };
 
 export type EventParticipation = {
@@ -169,4 +186,39 @@ export type FrailtyRiskAssessment = {
   factors: Array<{ label: string; status: 'good' | 'warn' | 'bad' | 'unknown'; detail: string }>;
   advice: string;
   assessedAt: string;
+};
+
+export type InquiryCategory = 'app' | 'points' | 'event' | 'account' | 'other';
+
+export type Inquiry = {
+  id: string;
+  kkpId: string;
+  category: InquiryCategory;
+  subject: string;
+  body: string;
+  submittedAt: string;
+  status: 'open' | 'in_progress' | 'resolved';
+};
+
+export type PushCategory =
+  | 'event_reminder'
+  | 'notice'
+  | 'lottery_result'
+  | 'achievement'
+  | 'system';
+
+export type PushMessage = {
+  id: string;
+  kkpId: string;
+  category: PushCategory;
+  title: string;
+  body: string;
+  sentAt: string;
+  readAt?: string;
+  data?: Record<string, string>;
+};
+
+export type PushPreferences = {
+  enabled: boolean;
+  categories: Record<PushCategory, boolean>;
 };

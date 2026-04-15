@@ -11,6 +11,7 @@ import { AppButton } from '@/src/components/ui/AppButton';
 import { Card } from '@/src/components/ui/Card';
 import { eventsApi } from '@/src/services/api/endpoints';
 import { useAuthStore } from '@/src/stores/authStore';
+import { useCurrentLocation } from '@/src/hooks/useLocation';
 import { colors, spacing, radii } from '@/src/theme';
 import type { EventCategory } from '@/src/types';
 
@@ -26,6 +27,11 @@ function formatDateTime(iso: string): string {
   return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日（${'日月火水木金土'[d.getDay()]}）${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
 
+function formatDate(iso: string): string {
+  const d = new Date(iso);
+  return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`;
+}
+
 export default function EventDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
@@ -36,6 +42,7 @@ export default function EventDetail() {
   const [scannerOpen, setScannerOpen] = useState(false);
   const [myQrOpen, setMyQrOpen] = useState(false);
   const scanned = useRef(false);
+  const { fetchLocation } = useCurrentLocation();
 
   const { data: event, isLoading } = useQuery({
     queryKey: ['event', id],
@@ -43,8 +50,18 @@ export default function EventDetail() {
     enabled: !!id,
   });
 
+  const application = useQuery({
+    queryKey: ['application', id, kkpId],
+    queryFn: () => eventsApi.getApplication(id, kkpId),
+    enabled: !!id && !!kkpId && event?.selectionMode === 'lottery',
+  });
+
   const attendMutation = useMutation({
-    mutationFn: () => eventsApi.attend(id, kkpId),
+    mutationFn: async () => {
+      const loc = await fetchLocation();
+      const payload = loc.status === 'ok' ? { latitude: loc.latitude, longitude: loc.longitude } : undefined;
+      return eventsApi.attend(id, kkpId, payload);
+    },
     onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: ['event', id] });
       qc.invalidateQueries({ queryKey: ['balance'] });
@@ -53,15 +70,39 @@ export default function EventDetail() {
     },
     onError: (err: any) => {
       const code = err?.response?.data?.error;
+      const distance = err?.response?.data?.distanceKm;
       if (code === 'already_participated') {
         Alert.alert('すでに参加済み', 'このイベントにはすでに参加登録されています。');
       } else if (code === 'date_mismatch') {
         Alert.alert('開催日が異なります', 'イベント開催日当日のみ参加登録できます。');
       } else if (code === 'event_closed') {
         Alert.alert('受付終了', 'このイベントは受付を終了しています。');
+      } else if (code === 'not_selected') {
+        Alert.alert('抽選対象外', '抽選に当選した方のみ参加登録できます。');
+      } else if (code === 'location_too_far') {
+        Alert.alert(
+          '会場外で登録できません',
+          `会場から約${distance}km離れた場所にいます。会場内で再度お試しください。`,
+        );
       } else {
         Alert.alert('エラー', '参加登録できませんでした。');
       }
+    },
+  });
+
+  const applyMutation = useMutation({
+    mutationFn: () => eventsApi.apply(id, kkpId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['application', id, kkpId] });
+      qc.invalidateQueries({ queryKey: ['applications', kkpId] });
+      Alert.alert('応募完了', '抽選結果は締切後にお知らせします。');
+    },
+    onError: (err: any) => {
+      const code = err?.response?.data?.error;
+      if (code === 'already_applied') Alert.alert('応募済み', 'このイベントには既に応募しています。');
+      else if (code === 'deadline_passed') Alert.alert('締切超過', '応募締切を過ぎています。');
+      else if (code === 'applications_closed') Alert.alert('応募受付終了', 'このイベントの応募受付は終了しています。');
+      else Alert.alert('エラー', '応募できませんでした。');
     },
   });
 
@@ -81,7 +122,6 @@ export default function EventDetail() {
     if (scanned.current) return;
     scanned.current = true;
     setScannerOpen(false);
-    // Validate that the QR contains the event ID
     if (data === id) {
       attendMutation.mutate();
     } else {
@@ -100,6 +140,8 @@ export default function EventDetail() {
   }
 
   const isPast = event.status !== 'open';
+  const isLottery = event.selectionMode === 'lottery';
+  const app = application.data;
 
   return (
     <SafeAreaView style={styles.safe} edges={['bottom']}>
@@ -115,6 +157,11 @@ export default function EventDetail() {
                 {CATEGORY_LABEL[event.category]}
               </AppText>
             </View>
+            {isLottery && (
+              <View style={styles.lotteryBadge}>
+                <AppText variant="caption" style={styles.lotteryText}>抽選制</AppText>
+              </View>
+            )}
             {isPast && (
               <View style={styles.closedBadge}>
                 <AppText variant="caption" style={styles.closedText}>受付終了</AppText>
@@ -134,10 +181,50 @@ export default function EventDetail() {
               value={`${event.participantCount}名${event.maxParticipants ? `（定員 ${event.maxParticipants}名）` : ''}`}
             />
             <InfoRow label="獲得ポイント" value={`${event.pointsAwarded}pt`} accent />
+            {isLottery && event.applicationDeadline && (
+              <InfoRow label="応募締切" value={formatDate(event.applicationDeadline)} />
+            )}
           </View>
         </Card>
 
-        {!isPast && (
+        {!isPast && isLottery && (
+          <Card style={styles.actionCard}>
+            <AppText variant="heading">応募・抽選結果</AppText>
+            {event.lotteryStatus === 'accepting' && !app && (
+              <>
+                <AppText variant="body" style={styles.actionNote}>
+                  このイベントは抽選制です。締切までに応募してください。
+                </AppText>
+                <AppButton
+                  label={applyMutation.isPending ? '応募中...' : '応募する'}
+                  onPress={() => applyMutation.mutate()}
+                  disabled={applyMutation.isPending}
+                />
+              </>
+            )}
+            {event.lotteryStatus === 'accepting' && app && (
+              <AppText variant="body">応募済みです。抽選結果は締切後にお知らせします。</AppText>
+            )}
+            {event.lotteryStatus === 'drawn' && app?.result === 'won' && (
+              <>
+                <AppText variant="body" style={styles.wonText}>🎉 抽選結果：当選</AppText>
+                <AppText variant="body" style={styles.actionNote}>
+                  当日会場にお越しいただき、下記の方法で参加登録してください。
+                </AppText>
+              </>
+            )}
+            {event.lotteryStatus === 'drawn' && app?.result === 'lost' && (
+              <AppText variant="body" style={styles.lostText}>抽選結果：落選</AppText>
+            )}
+            {event.lotteryStatus === 'drawn' && !app && (
+              <AppText variant="body" style={styles.actionNote}>
+                このイベントには応募していません。
+              </AppText>
+            )}
+          </Card>
+        )}
+
+        {!isPast && (!isLottery || (event.lotteryStatus === 'drawn' && app?.result === 'won')) && (
           <Card style={styles.actionCard}>
             <AppText variant="heading">参加方法</AppText>
 
@@ -146,7 +233,8 @@ export default function EventDetail() {
                 ① 会場のQRコードをスキャン
               </AppText>
               <AppText variant="caption" style={styles.actionNote}>
-                会場に掲示されているQRコードをスキャンして参加登録します
+                会場に掲示されているQRコードをスキャンして参加登録します。
+                位置情報から会場外の登録を検知します。
               </AppText>
               <AppButton
                 label={attendMutation.isPending ? '登録中...' : 'QRコードをスキャン'}
@@ -174,7 +262,6 @@ export default function EventDetail() {
         )}
       </ScrollView>
 
-      {/* QRスキャナーモーダル */}
       <Modal visible={scannerOpen} animationType="slide" onRequestClose={() => setScannerOpen(false)}>
         <View style={styles.scannerContainer}>
           <CameraView
@@ -194,7 +281,6 @@ export default function EventDetail() {
         </View>
       </Modal>
 
-      {/* マイQRコードモーダル */}
       <Modal visible={myQrOpen} animationType="slide" transparent onRequestClose={() => setMyQrOpen(false)}>
         <View style={styles.qrModalBg}>
           <View style={styles.qrModalCard}>
@@ -237,6 +323,13 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   categoryText: { color: '#fff', fontWeight: '700' },
+  lotteryBadge: {
+    backgroundColor: colors.accent,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  lotteryText: { color: '#fff', fontWeight: '700' },
   closedBadge: {
     backgroundColor: colors.disabled,
     paddingHorizontal: spacing.sm,
@@ -254,7 +347,8 @@ const styles = StyleSheet.create({
   actionLabel: { fontWeight: '700' },
   actionNote: { color: colors.textMuted },
   divider: { height: 1, backgroundColor: colors.border },
-  // Scanner
+  wonText: { color: colors.success, fontWeight: '700' },
+  lostText: { color: colors.danger, fontWeight: '700' },
   scannerContainer: { flex: 1, backgroundColor: '#000' },
   camera: { flex: 1 },
   scannerOverlay: {
@@ -276,7 +370,6 @@ const styles = StyleSheet.create({
     borderRadius: radii.md,
   },
   scannerHint: { color: '#ccc', textAlign: 'center' },
-  // MyQR modal
   qrModalBg: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.5)',

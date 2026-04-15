@@ -1,7 +1,12 @@
 import { Tabs } from 'expo-router';
 import { colors } from '@/src/theme';
+import { useAuthStore } from '@/src/stores/authStore';
+import { usePushRegistration } from '@/src/hooks/usePushRegistration';
 
 export default function UserLayout() {
+  const kkpId = useAuthStore((s) => s.kkpId);
+  usePushRegistration(kkpId);
+
   return (
     <Tabs
       screenOptions={{
@@ -23,6 +28,8 @@ export default function UserLayout() {
       <Tabs.Screen name="videos" options={{ href: null, title: '健康動画' }} />
       <Tabs.Screen name="video/[id]" options={{ href: null, title: '動画視聴' }} />
       <Tabs.Screen name="missions" options={{ href: null, title: 'ミッション' }} />
+      <Tabs.Screen name="inquiry" options={{ href: null, title: 'お問い合わせ' }} />
+      <Tabs.Screen name="notifications" options={{ href: null, title: '通知センター' }} />
     </Tabs>
   );
 }

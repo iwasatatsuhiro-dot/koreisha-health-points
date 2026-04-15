@@ -1,13 +1,18 @@
 import { apiClient } from './client';
 import type {
   AppEvent,
+  EventApplication,
   ExchangeProvider,
   FrailtyRiskAssessment,
   HealthVideo,
+  Inquiry,
+  InquiryCategory,
   Mission,
   Notice,
   PointBalance,
   PointHistory,
+  PushMessage,
+  PushPreferences,
   RankingEntry,
   StepsDaily,
   StepsWeekly,
@@ -86,9 +91,33 @@ export const eventsApi = {
     const res = await apiClient.post('/events', data);
     return res.data as AppEvent;
   },
-  attend: async (eventId: string, kkpId: string) => {
-    const res = await apiClient.post(`/events/${eventId}/attend`, { kkpId });
+  attend: async (eventId: string, kkpId: string, location?: { latitude: number; longitude: number }) => {
+    const payload: Record<string, unknown> = { kkpId };
+    if (location) {
+      payload.latitude = location.latitude;
+      payload.longitude = location.longitude;
+    }
+    const res = await apiClient.post(`/events/${eventId}/attend`, payload);
     return res.data as { success: boolean; pointsAwarded: number };
+  },
+  apply: async (eventId: string, kkpId: string) => {
+    const res = await apiClient.post(`/events/${eventId}/apply`, { kkpId });
+    return res.data as { success: boolean; application: EventApplication };
+  },
+  listApplications: async (kkpId: string) => {
+    const res = await apiClient.get(`/users/${kkpId}/applications`);
+    return res.data.applications as EventApplication[];
+  },
+  getApplication: async (eventId: string, kkpId: string) => {
+    const res = await apiClient.get(`/events/${eventId}/applications/${kkpId}`, {
+      validateStatus: (s) => s === 200 || s === 404,
+    });
+    if (res.status === 404) return null;
+    return res.data as EventApplication;
+  },
+  draw: async (eventId: string, organizerId: string) => {
+    const res = await apiClient.post(`/events/${eventId}/draw`, { organizerId });
+    return res.data as { success: boolean; drawn: number; won: number };
   },
   checkIn: async (eventId: string, organizerId: string, kkpId: string) => {
     const res = await apiClient.post(`/events/${eventId}/check-in`, { organizerId, kkpId });
@@ -151,5 +180,39 @@ export const frailtyApi = {
   assess: async (kkpId: string) => {
     const res = await apiClient.get(`/users/${kkpId}/frailty-risk`);
     return res.data as FrailtyRiskAssessment;
+  },
+};
+
+export const inquiriesApi = {
+  submit: async (payload: { kkpId: string; category: InquiryCategory; subject: string; body: string }) => {
+    const res = await apiClient.post('/inquiries', payload);
+    return res.data as { success: boolean; inquiry: Inquiry };
+  },
+  listMine: async (kkpId: string) => {
+    const res = await apiClient.get(`/users/${kkpId}/inquiries`);
+    return res.data.inquiries as Inquiry[];
+  },
+};
+
+export const pushApi = {
+  listMessages: async (kkpId: string) => {
+    const res = await apiClient.get(`/users/${kkpId}/push-messages`);
+    return res.data as { messages: PushMessage[]; unread: number };
+  },
+  markRead: async (kkpId: string, id?: string) => {
+    const res = await apiClient.post(`/users/${kkpId}/push-messages/read`, { id });
+    return res.data as { success: boolean; unread: number };
+  },
+  getPreferences: async (kkpId: string) => {
+    const res = await apiClient.get(`/users/${kkpId}/push-preferences`);
+    return res.data as PushPreferences;
+  },
+  updatePreferences: async (kkpId: string, patch: Partial<PushPreferences>) => {
+    const res = await apiClient.put(`/users/${kkpId}/push-preferences`, patch);
+    return res.data as PushPreferences;
+  },
+  registerToken: async (kkpId: string, token: string) => {
+    const res = await apiClient.post(`/users/${kkpId}/push-token`, { token });
+    return res.data as { kkpId: string; token: string };
   },
 };

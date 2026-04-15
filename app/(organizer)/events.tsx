@@ -11,7 +11,7 @@ import { Card } from '@/src/components/ui/Card';
 import { eventsApi } from '@/src/services/api/endpoints';
 import { useAuthStore } from '@/src/stores/authStore';
 import { colors, radii, spacing, typography } from '@/src/theme';
-import type { AppEvent, EventCategory } from '@/src/types';
+import type { AppEvent, EventCategory, EventSelectionMode } from '@/src/types';
 
 const CATEGORY_OPTIONS: { value: EventCategory; label: string }[] = [
   { value: 'health', label: '健康' },
@@ -40,23 +40,37 @@ function RegisterModal({
   const [title, setTitle] = useState('');
   const [category, setCategory] = useState<EventCategory>('health');
   const [location, setLocation] = useState('');
+  const [latitude, setLatitude] = useState('');
+  const [longitude, setLongitude] = useState('');
   const [startDate, setStartDate] = useState('');
   const [description, setDescription] = useState('');
   const [points, setPoints] = useState('50');
+  const [selectionMode, setSelectionMode] = useState<EventSelectionMode>('first-come');
+  const [maxParticipants, setMaxParticipants] = useState('');
+  const [applicationDeadline, setApplicationDeadline] = useState('');
 
   const mutation = useMutation({
     mutationFn: () => {
       const startAt = startDate ? new Date(startDate).toISOString() : new Date().toISOString();
+      const lat = latitude ? parseFloat(latitude) : undefined;
+      const lng = longitude ? parseFloat(longitude) : undefined;
+      const cap = maxParticipants ? parseInt(maxParticipants, 10) : undefined;
+      const deadline = applicationDeadline ? new Date(applicationDeadline).toISOString() : undefined;
       return eventsApi.registerEvent({
         title,
         category,
         location,
+        latitude: Number.isFinite(lat) ? lat : undefined,
+        longitude: Number.isFinite(lng) ? lng : undefined,
         startAt,
         endAt: startAt,
         description,
         organizerId,
         organizerName,
         pointsAwarded: parseInt(points, 10) || 50,
+        maxParticipants: cap && Number.isFinite(cap) ? cap : undefined,
+        selectionMode,
+        applicationDeadline: deadline,
       });
     },
     onSuccess: () => {
@@ -71,6 +85,10 @@ function RegisterModal({
     if (!title.trim()) { Alert.alert('イベント名を入力してください'); return; }
     if (!location.trim()) { Alert.alert('場所を入力してください'); return; }
     if (!startDate.trim()) { Alert.alert('開催日を入力してください（例: 2025-05-20）'); return; }
+    if (selectionMode === 'lottery') {
+      if (!maxParticipants.trim()) { Alert.alert('抽選制は定員の入力が必要です'); return; }
+      if (!applicationDeadline.trim()) { Alert.alert('応募締切を入力してください'); return; }
+    }
     mutation.mutate();
   }
 
@@ -106,6 +124,14 @@ function RegisterModal({
           </View>
 
           <View style={styles.field}>
+            <AppText variant="heading">会場の緯度・経度（位置情報不正防止）</AppText>
+            <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+              <TextInput style={[styles.input, { flex: 1 }]} value={latitude} onChangeText={setLatitude} placeholder="緯度 例: 43.0544" placeholderTextColor={colors.textMuted} keyboardType="numbers-and-punctuation" />
+              <TextInput style={[styles.input, { flex: 1 }]} value={longitude} onChangeText={setLongitude} placeholder="経度 例: 141.3179" placeholderTextColor={colors.textMuted} keyboardType="numbers-and-punctuation" />
+            </View>
+          </View>
+
+          <View style={styles.field}>
             <AppText variant="heading">開催日 *</AppText>
             <TextInput
               style={styles.input}
@@ -126,6 +152,43 @@ function RegisterModal({
             <AppText variant="heading">付与ポイント数</AppText>
             <TextInput style={styles.input} value={points} onChangeText={setPoints} keyboardType="number-pad" placeholder="50" placeholderTextColor={colors.textMuted} />
           </View>
+
+          <View style={styles.field}>
+            <AppText variant="heading">募集方式</AppText>
+            <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+              <AppButton
+                label="先着順"
+                variant={selectionMode === 'first-come' ? 'primary' : 'secondary'}
+                onPress={() => setSelectionMode('first-come')}
+                style={{ flex: 1 }}
+              />
+              <AppButton
+                label="抽選制"
+                variant={selectionMode === 'lottery' ? 'primary' : 'secondary'}
+                onPress={() => setSelectionMode('lottery')}
+                style={{ flex: 1 }}
+              />
+            </View>
+          </View>
+
+          <View style={styles.field}>
+            <AppText variant="heading">定員{selectionMode === 'lottery' ? ' *（抽選定員）' : ''}</AppText>
+            <TextInput style={styles.input} value={maxParticipants} onChangeText={setMaxParticipants} keyboardType="number-pad" placeholder="例: 20" placeholderTextColor={colors.textMuted} />
+          </View>
+
+          {selectionMode === 'lottery' && (
+            <View style={styles.field}>
+              <AppText variant="heading">応募締切 *</AppText>
+              <TextInput
+                style={styles.input}
+                value={applicationDeadline}
+                onChangeText={setApplicationDeadline}
+                placeholder="YYYY-MM-DD"
+                placeholderTextColor={colors.textMuted}
+                keyboardType="numbers-and-punctuation"
+              />
+            </View>
+          )}
 
           <AppButton label={mutation.isPending ? '登録中...' : '登録する'} onPress={handleSubmit} disabled={mutation.isPending} />
           <AppButton label="キャンセル" variant="secondary" onPress={onClose} />
@@ -170,6 +233,19 @@ function EventDetailModal({
     },
   });
 
+  const drawMutation = useMutation({
+    mutationFn: () => eventsApi.draw(event.id, organizerId),
+    onSuccess: (data) => {
+      qc.invalidateQueries({ queryKey: ['events'] });
+      Alert.alert('抽選完了', `応募 ${data.drawn}名 中 ${data.won}名を当選としました。結果は各応募者へ通知されます。`);
+    },
+    onError: (err: any) => {
+      const code = err?.response?.data?.error;
+      if (code === 'already_drawn') Alert.alert('抽選済み', 'このイベントは既に抽選済みです。');
+      else Alert.alert('エラー', '抽選に失敗しました。');
+    },
+  });
+
   async function openScanner() {
     if (!permission?.granted) {
       const result = await requestPermission();
@@ -211,6 +287,25 @@ function EventDetailModal({
             <InfoRow label="参加者" value={`${event.participantCount}名`} />
             <InfoRow label="付与ポイント" value={`${event.pointsAwarded}pt`} />
           </Card>
+
+          {event.selectionMode === 'lottery' && event.status === 'open' && (
+            <Card>
+              <AppText variant="heading">抽選管理</AppText>
+              <AppText variant="body" style={styles.sectionNote}>
+                このイベントは抽選制です。応募締切後に抽選を実行してください。結果は応募者へ自動通知されます。
+              </AppText>
+              {event.lotteryStatus === 'accepting' && (
+                <AppButton
+                  label={drawMutation.isPending ? '抽選中...' : '抽選を実行する'}
+                  onPress={() => drawMutation.mutate()}
+                  disabled={drawMutation.isPending}
+                />
+              )}
+              {event.lotteryStatus === 'drawn' && (
+                <AppText variant="body" style={styles.wonText}>抽選済み（当選者 {event.participantCount}名）</AppText>
+              )}
+            </Card>
+          )}
 
           {event.status === 'open' && (
             <Card>
@@ -447,4 +542,5 @@ const styles = StyleSheet.create({
     borderRadius: radii.md,
   },
   scannerHint: { color: '#ccc', textAlign: 'center' },
+  wonText: { color: colors.success, fontWeight: '700' },
 });
