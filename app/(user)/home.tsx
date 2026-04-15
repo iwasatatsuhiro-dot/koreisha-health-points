@@ -15,6 +15,7 @@ import {
   frailtyApi,
   missionsApi,
   healthChangesApi,
+  badgesApi,
 } from '@/src/services/api/endpoints';
 import { isWinterMonth, WINTER_VIDEO_BONUS } from '@/src/utils/season';
 import { useAuthStore } from '@/src/stores/authStore';
@@ -98,6 +99,13 @@ export default function Home() {
   const healthChanges = useQuery({
     queryKey: ['health-changes', kkpId],
     queryFn: () => healthChangesApi.list(kkpId!),
+    enabled: !!kkpId,
+    staleTime: 60_000,
+  });
+
+  const badges = useQuery({
+    queryKey: ['badges', kkpId],
+    queryFn: () => badgesApi.list(kkpId!),
     enabled: !!kkpId,
     staleTime: 60_000,
   });
@@ -303,6 +311,29 @@ export default function Home() {
           </AppText>
         </Card>
 
+        {/* バッジ */}
+        <Card>
+          <View style={styles.cardHeader}>
+            <AppText variant="heading">
+              バッジ{badges.data ? `（${badges.data.unlockedCount}/${badges.data.totalCount}獲得）` : ''}
+            </AppText>
+            <AppButton label="一覧を見る" variant="secondary" onPress={() => router.push('/(user)/badges')} style={styles.smallBtn} />
+          </View>
+          {badges.data && badges.data.badges.slice(0, 3).map((b) => (
+            <View key={b.badge.id} style={styles.badgePreviewRow}>
+              <AppText style={[styles.badgePreviewEmoji, !b.unlocked && styles.badgePreviewEmojiLocked]}>
+                {b.badge.emoji}
+              </AppText>
+              <View style={{ flex: 1 }}>
+                <AppText variant="body" style={{ fontWeight: '700' }}>{b.badge.title}</AppText>
+                <AppText variant="caption" style={styles.muted}>
+                  {b.unlocked ? '獲得済み' : `${b.progress.toLocaleString()} / ${b.badge.target.toLocaleString()}`}
+                </AppText>
+              </View>
+            </View>
+          ))}
+        </Card>
+
         {/* 健康動画 */}
         <Card>
           <View style={styles.cardHeader}>
@@ -419,4 +450,14 @@ const styles = StyleSheet.create({
   winterTitle: { color: colors.primary },
   winterActions: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.xs },
   winterBtn: { flex: 1 },
+  badgePreviewRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingVertical: spacing.xs,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  badgePreviewEmoji: { fontSize: 28, lineHeight: 34 },
+  badgePreviewEmojiLocked: { opacity: 0.4 },
 });

@@ -152,6 +152,36 @@ export type EventUpdateInput = {
   maxParticipants?: number;
 };
 
+export type BadgeKind =
+  | 'steps_total'
+  | 'vitals_count'
+  | 'events_attended'
+  | 'videos_watched'
+  | 'surveys_answered';
+
+export type Badge = {
+  id: string;
+  title: string;
+  description: string;
+  emoji: string;
+  kind: BadgeKind;
+  target: number;
+};
+
+export type BadgeStatus = {
+  badge: Badge;
+  progress: number;
+  unlocked: boolean;
+  unlockedAt: string | null;
+};
+
+export type BadgeListResult = {
+  badges: BadgeStatus[];
+  unlockedCount: number;
+  totalCount: number;
+  newlyUnlocked: string[];
+};
+
 export type PointHistoryCategory = 'walk' | 'event' | 'video' | 'survey' | 'manual' | 'exchange';
 
 export type PointHistory = {

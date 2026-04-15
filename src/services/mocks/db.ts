@@ -1,6 +1,10 @@
 import { currentStepsGoal, isWinterMonth, WINTER_VIDEO_BONUS } from '@/src/utils/season';
 import type {
   AppEvent,
+  Badge,
+  BadgeKind,
+  BadgeListResult,
+  BadgeStatus,
   EmergencyContact,
   EventApplication,
   EventParticipation,
@@ -444,6 +448,80 @@ function getOrSeedSteps(kkpId: string): StepsDaily[] {
 
 const vitalsByUser: Record<string, VitalReading[]> = {};
 let vitalsSeq = 1;
+
+// ── バッジ ─────────────────────────────────────────────────────────────────
+
+const badgeCatalog: Badge[] = [
+  { id: 'BDG-STEPS-100K', title: '歩行 10万歩', description: '累計10万歩を達成', emoji: '👟', kind: 'steps_total', target: 100_000 },
+  { id: 'BDG-STEPS-500K', title: '歩行 50万歩', description: '累計50万歩を達成', emoji: '🏃', kind: 'steps_total', target: 500_000 },
+  { id: 'BDG-STEPS-1M', title: '歩行 100万歩', description: '累計100万歩を達成', emoji: '🏆', kind: 'steps_total', target: 1_000_000 },
+  { id: 'BDG-VITALS-10', title: 'バイタル 10回', description: 'バイタルを10回記録', emoji: '❤️', kind: 'vitals_count', target: 10 },
+  { id: 'BDG-VITALS-30', title: 'バイタル 30回', description: 'バイタルを30回記録', emoji: '💖', kind: 'vitals_count', target: 30 },
+  { id: 'BDG-EVENTS-1', title: 'はじめてのイベント', description: 'イベントに初参加', emoji: '🌱', kind: 'events_attended', target: 1 },
+  { id: 'BDG-EVENTS-5', title: 'イベント 5回参加', description: 'イベントに5回参加', emoji: '🌼', kind: 'events_attended', target: 5 },
+  { id: 'BDG-VIDEOS-5', title: '健康動画 5本', description: '健康動画を5本視聴', emoji: '🎬', kind: 'videos_watched', target: 5 },
+  { id: 'BDG-SURVEYS-3', title: 'アンケート 3回', description: 'アンケートに3回回答', emoji: '📝', kind: 'surveys_answered', target: 3 },
+];
+
+const unlockedBadges: Record<string, Record<string, string>> = {};
+
+function getBadgeProgress(kkpId: string, kind: BadgeKind): number {
+  switch (kind) {
+    case 'steps_total':
+      return (stepsByUser[kkpId] ?? []).reduce((s, d) => s + d.count, 0);
+    case 'vitals_count':
+      return (vitalsByUser[kkpId] ?? []).length;
+    case 'events_attended':
+      return participations.filter((p) => p.kkpId === kkpId).length;
+    case 'videos_watched':
+      return watchedVideos[kkpId]?.size ?? 0;
+    case 'surveys_answered':
+      return answeredSurveys[kkpId]?.size ?? 0;
+  }
+}
+
+function computeBadges(kkpId: string): BadgeListResult {
+  if (!unlockedBadges[kkpId]) unlockedBadges[kkpId] = {};
+  const store = unlockedBadges[kkpId];
+  const newlyUnlocked: string[] = [];
+  const badges: BadgeStatus[] = badgeCatalog.map((b) => {
+    const progress = getBadgeProgress(kkpId, b.kind);
+    const alreadyUnlocked = !!store[b.id];
+    if (!alreadyUnlocked && progress >= b.target) {
+      const now = new Date().toISOString();
+      store[b.id] = now;
+      newlyUnlocked.push(b.id);
+      pushMessages.push({
+        id: `PN-${pushSeq++}`,
+        kkpId,
+        category: 'achievement',
+        title: 'バッジを獲得しました！',
+        body: `${b.emoji} ${b.title} — ${b.description}`,
+        sentAt: now,
+        data: { badgeId: b.id },
+      });
+    }
+    const unlockedAt = store[b.id] ?? null;
+    return {
+      badge: b,
+      progress: Math.min(progress, b.target),
+      unlocked: !!unlockedAt,
+      unlockedAt,
+    };
+  });
+  badges.sort((a, b) => {
+    if (a.unlocked !== b.unlocked) return a.unlocked ? -1 : 1;
+    const aPct = a.progress / a.badge.target;
+    const bPct = b.progress / b.badge.target;
+    return bPct - aPct;
+  });
+  return {
+    badges,
+    unlockedCount: badges.filter((b) => b.unlocked).length,
+    totalCount: badges.length,
+    newlyUnlocked,
+  };
+}
 
 // ── 健康状態スナップショット ───────────────────────────────────────────────
 
@@ -1014,6 +1092,9 @@ export const db = {
       isMe: row.kkpId === kkpId,
     }));
   },
+
+  // --- バッジ ---
+  getBadges: (kkpId: string): BadgeListResult => computeBadges(kkpId),
 
   // --- フレイルリスク判定 ---
   getHealthChanges: (kkpId: string): HealthChangesResult => computeHealthChanges(kkpId),
